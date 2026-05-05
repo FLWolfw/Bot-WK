@@ -11,7 +11,7 @@ export function setupDashboard(app, client) {
     saveUninitialized: false
   }));
 
-  // 🔐 LOGIN DISCORD (AHORA CON GUILDS)
+  // 🔐 LOGIN DISCORD
   app.get('/login', (req, res) => {
     const url = `https://discord.com/api/oauth2/authorize?client_id=${process.env.CLIENT_ID}&redirect_uri=${encodeURIComponent(process.env.REDIRECT_URI)}&response_type=code&scope=identify%20guilds`;
     res.redirect(url);
@@ -40,7 +40,7 @@ export function setupDashboard(app, client) {
 
       const accessToken = tokenRes.data.access_token;
 
-      // 🔥 USER
+      // 👤 USER
       const userRes = await axios.get(
         'https://discord.com/api/users/@me',
         {
@@ -50,7 +50,7 @@ export function setupDashboard(app, client) {
         }
       );
 
-      // 🔥 GUILDS (NUEVO)
+      // 🏠 GUILDS
       const guildsRes = await axios.get(
         'https://discord.com/api/users/@me/guilds',
         {
@@ -81,6 +81,9 @@ export function setupDashboard(app, client) {
     const user = req.session.user;
     const guilds = req.session.guilds || [];
 
+    // 🔥 SOLO SERVERS DONDE ERES ADMIN
+    const adminGuilds = guilds.filter(g => (g.permissions & 0x8) === 0x8);
+
     res.send(`
       <html>
         <body style="background:#111;color:white;font-family:Arial;padding:20px;">
@@ -95,14 +98,53 @@ export function setupDashboard(app, client) {
           <p>Bot activo ✅</p>
           <p>Servidores (bot): ${client.guilds.cache.size}</p>
 
-          <h2>Servidores tuyos</h2>
+          <h2>Servidores que puedes administrar</h2>
 
           <ul>
-            ${guilds.map(g => `<li>${g.name}</li>`).join('')}
+            ${adminGuilds.map(g => `
+              <li>
+                <a href="/server/${g.id}" style="color:#00ffcc;">
+                  ${g.name}
+                </a>
+              </li>
+            `).join('')}
           </ul>
 
           <br>
           <a href="/logout" style="color:red;">Cerrar sesión</a>
+
+        </body>
+      </html>
+    `);
+  });
+
+  // 🧠 PANEL POR SERVIDOR
+  app.get('/server/:id', (req, res) => {
+
+    if (!req.session.user) {
+      return res.redirect('/login');
+    }
+
+    const serverId = req.params.id;
+
+    res.send(`
+      <html>
+        <body style="background:#111;color:white;font-family:Arial;padding:20px;">
+
+          <h1>Panel del servidor</h1>
+
+          <p>ID: ${serverId}</p>
+
+          <h3>Configuraciones futuras:</h3>
+          <ul>
+            <li>Moderación</li>
+            <li>Logs</li>
+            <li>Welcome</li>
+            <li>Roles</li>
+          </ul>
+
+          <br>
+          <a href="/dashboard">⬅ Volver</a>
 
         </body>
       </html>
