@@ -1,52 +1,186 @@
-// 🧠 DASHBOARD
-app.get('/dashboard', (req, res) => {
+import session from 'express-session';
+import axios from 'axios';
+import express from 'express';
 
-  if (!req.session.user) {
-    return res.redirect('/login');
-  }
+export function setupDashboard(app, client) {
 
-  const user = req.session.user;
-  const guilds = req.session.guilds || [];
+  console.log('🔥 Dashboard cargado');
 
-  // 🔥 Servers donde eres admin
-  const adminGuilds = guilds.filter(g => (g.permissions & 0x8) === 0x8);
+  app.use(express.urlencoded({ extended: true }));
 
-  // 🔥 IDs donde está el bot
-  const botGuildIds = client.guilds.cache.map(g => g.id);
+  app.use(session({
+    secret: process.env.SESSION_SECRET || 'wk-secret',
+    resave: false,
+    saveUninitialized: false
+  }));
 
-  // 🔥 SOLO servers donde está el bot
-  const filteredGuilds = adminGuilds.filter(g => botGuildIds.includes(g.id));
+  // 🔐 LOGIN DISCORD
+  app.get('/login', (req, res) => {
+    const url = `https://discord.com/api/oauth2/authorize?client_id=${process.env.CLIENT_ID}&redirect_uri=${encodeURIComponent(process.env.REDIRECT_URI)}&response_type=code&scope=identify%20guilds`;
+    res.redirect(url);
+  });
 
-  res.send(`
-    <html>
-      <body style="background:#111;color:white;font-family:Arial;padding:20px;">
+  // 🔐 CALLBACK
+  app.get('/callback', async (req, res) => {
+    const code = req.query.code;
 
-        <h1>WK' Bot Dashboard</h1>
+    try {
+      const tokenRes = await axios.post(
+        'https://discord.com/api/oauth2/token',
+        new URLSearchParams({
+          client_id: process.env.CLIENT_ID,
+          client_secret: process.env.CLIENT_SECRET,
+          grant_type: 'authorization_code',
+          code,
+          redirect_uri: process.env.REDIRECT_URI
+        }),
+        {
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
+          }
+        }
+      );
 
-        <img src="https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png"
-             width="80"
-             style="border-radius:50%">
+      const accessToken = tokenRes.data.access_token;
 
-        <p>Usuario: ${user.username}</p>
-        <p>Bot activo ✅</p>
-        <p>Servidores (bot): ${client.guilds.cache.size}</p>
+      const userRes = await axios.get(
+        'https://discord.com/api/users/@me',
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      );
 
-        <h2>Servidores donde está el bot</h2>
+      const guildsRes = await axios.get(
+        'https://discord.com/api/users/@me/guilds',
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      );
 
-        <ul>
-          ${filteredGuilds.map(g => `
-            <li>
-              <a href="/server/${g.id}" style="color:#00ffcc;">
-                ${g.name}
-              </a>
-            </li>
-          `).join('')}
-        </ul>
+      req.session.user = userRes.data;
+      req.session.guilds = guildsRes.data;
 
-        <br>
-        <a href="/logout" style="color:red;">Cerrar sesión</a>
+      res.redirect('/dashboard');
 
-      </body>
-    </html>
-  `);
-});
+    } catch (err) {
+      console.error(err);
+      res.send('❌ Error en login');
+    }
+  });
+
+  // 🧠 DASHBOARD (FILTRADO BIEN)
+  app.get('/dashboard', (req, res) => {
+
+    if (!req.session.user) {
+      return res.redirect('/login');
+    }
+
+    const user = req.session.user;
+    const guilds = req.session.guilds || [];
+
+    // 🔥 Admin
+    const adminGuilds = guilds.filter(g => (g.permissions & 0x8) === 0x8);
+
+    // 🔥 Donde está el bot
+    const botGuildIds = client.guilds.cache.map(g => g.id);
+
+    // 🔥 FINAL
+    const filteredGuilds = adminGuilds.filter(g => botGuildIds.includes(g.id));
+
+    res.send(`
+      <html>
+        <body style="background:#111;color:white;font-family:Arial;padding:20px;">
+
+          <h1>WK' Bot Dashboard</h1>
+
+          <img src="https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png"
+               width="80"
+               style="border-radius:50%">
+
+          <p>Usuario: ${user.username}</p>
+          <p>Bot activo ✅</p>
+          <p>Servidores (bot): ${client.guilds.cache.size}</p>
+
+          <h2>Servidores donde está el bot</h2>
+
+          ${
+            filteredGuilds.length === 0
+              ? `<p style="color:orange;">No tienes servidores válidos.</p>`
+              : `
+                <ul>
+                  ${filteredGuilds.map(g => `
+                    <li>
+                      <a href="/server/${g.id}" style="color:#00ffcc;">
+                        ${g.name}
+                      </a>
+                    </li>
+                  `).join('')}
+                </ul>
+              `
+          }
+
+          <br>
+          <a href="/logout" style="color:red;">Cerrar sesión</a>
+
+        </body>
+      </html>
+    `);
+  });
+
+  // 🧠 PANEL POR SERVIDOR
+  app.get('/server/:id', async (req, res) => {
+
+    if (!req.session.user) {
+      return res.redirect('/login');
+    }
+
+    const serverId = req.params.id;
+
+    const { getGuildConfig } = await import('../services/guildConfigService.js');
+
+    const config = await getGuildConfig(client.db, serverId);
+
+    res.send(`
+      <html>
+        <body style="background:#111;color:white;font-family:Arial;padding:20px;">
+
+          <h1>Panel del servidor</h1>
+
+          <p>ID: ${serverId}</p>
+
+          <h3>Welcome System</h3>
+
+          <p>Estado: ${config.welcome_enabled ? '🟢 Activado' : '🔴 Desactivado'}</p>
+
+          <form method="POST" action="/server/${serverId}/welcome">
+            <button type="submit">
+              ${config.welcome_enabled ? 'Desactivar' : 'Activar'}
+            </button>
+          </form>
+
+          <br>
+          <a href="/dashboard">⬅ Volver</a>
+
+        </body>
+      </html>
+    `);
+  });
+
+  // 🔥 GUARDAR EN DB
+  app.post('/server/:id/welcome', async (req, res) => {
+
+    const serverId = req.params.id;
+
+    const { getGuildConfig, updateWelcome } = await import('../services/guildConfigService.js');
+
+    const config = await getGuildConfig(client.db, serverId);
+
+    await updateWelcome(client.db, serverId, !config.welcome_enabled);
+
+    res.redirect(`/server/${serverId}`);
+  });
+
+  // 🔓 LOGOUT
+  app.get('/logout', (req, res) => {
+    req.session.destroy(() => {
+      res.redirect('/');
+    });
+  });
+
+}
