@@ -9,7 +9,7 @@ import { getServerCounters, saveServerCounters } from '../services/serverstatsSe
 import { logger } from '../utils/logger.js';
 import { sendLog } from '../utils/discordLogger.js';
 import { AuditLogEvent } from 'discord.js';
-import { handleChannelDelete } from '../security/antiNuke.js'; // 🔥 NUEVO
+import { antiChannelDelete } from '../security/antiNuke.js'; // ✅ FIX
 
 export default {
     name: 'channelDelete',
@@ -37,9 +37,9 @@ export default {
             logger.warn('Error leyendo audit logs (channelDelete):', err);
         }
 
-        // 🔥 ANTI-NUKE
+        // 🔥 ANTI-NUKE (FIX)
         if (executor) {
-            await handleChannelDelete(channel, executor);
+            await antiChannelDelete(channel, executor);
         }
 
         // 🔥 LOG
@@ -66,7 +66,7 @@ export default {
         }
 
         // =========================
-        // TODO TU CÓDIGO ORIGINAL ↓
+        // TU CÓDIGO ORIGINAL ↓
         // =========================
 
         if (channel.type === 0 && channel.guild) {
