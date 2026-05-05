@@ -1,6 +1,7 @@
 import { Events, AuditLogEvent } from 'discord.js';
 import { sendLog } from '../utils/discordLogger.js';
 import { logger } from '../utils/logger.js';
+import { antiChannelCreate } from '../security/antiNuke.js'; // 🔥 NUEVO
 
 export default {
   name: Events.ChannelCreate,
@@ -9,6 +10,7 @@ export default {
     try {
       if (!channel.guild) return;
 
+      let executorObj = null;
       let executor = 'Desconocido';
 
       try {
@@ -20,11 +22,17 @@ export default {
         const log = fetchedLogs.entries.first();
 
         if (log && log.target.id === channel.id) {
+          executorObj = log.executor;
           executor = log.executor?.tag || 'Desconocido';
         }
 
       } catch (err) {
         logger.warn('Error audit logs channelCreate:', err);
+      }
+
+      // 🔥 ANTI-NUKE
+      if (executorObj) {
+        await antiChannelCreate(channel, executorObj);
       }
 
       await sendLog({

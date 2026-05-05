@@ -1,38 +1,76 @@
-const deleteTracker = new Map();
+const trackers = {
+  channelDelete: new Map(),
+  channelCreate: new Map(),
+  roleCreate: new Map(),
+  ban: new Map()
+};
 
-const LIMIT = 3; // canales
-const TIME = 10000; // 10 segundos
+const LIMITS = {
+  channelDelete: 3,
+  channelCreate: 5,
+  roleCreate: 3,
+  ban: 3
+};
 
-export async function handleChannelDelete(channel, executor) {
+const TIME = 10000;
+
+// 🔥 ROLES PROTEGIDOS
+const SAFE_ROLES = [
+  '1231565813597863946', // Founder
+  '1453091584185860268'  // Katt
+];
+
+async function punish(member, reason) {
+  try {
+    await member.roles.set([]);
+    console.log(`🚨 Anti-nuke: ${member.user.tag} castigado (${reason})`);
+  } catch (err) {
+    console.error('Error castigando:', err);
+  }
+}
+
+async function handleAction(type, guild, executor) {
   if (!executor || executor.bot) return;
 
-  const key = executor.id;
+  if (executor.id === guild.ownerId) return;
+
+  const member = await guild.members.fetch(executor.id);
+
+  // 🔥 WHITELIST POR ROL
+  if (SAFE_ROLES.some(r => member.roles.cache.has(r))) return;
+
   const now = Date.now();
+  const map = trackers[type];
 
-  if (!deleteTracker.has(key)) {
-    deleteTracker.set(key, []);
+  if (!map.has(executor.id)) {
+    map.set(executor.id, []);
   }
 
-  const actions = deleteTracker.get(key).filter(t => now - t < TIME);
+  const actions = map.get(executor.id).filter(t => now - t < TIME);
   actions.push(now);
-  deleteTracker.set(key, actions);
+  map.set(executor.id, actions);
 
-  if (actions.length >= LIMIT) {
-    // 🚨 CASTIGO
-    try {
-      const member = await channel.guild.members.fetch(executor.id);
-
-      // quitar roles (opcional)
-      await member.roles.set([]);
-
-      // o ban directo:
-      // await member.ban({ reason: 'Anti-nuke: deleting channels' });
-
-      return true;
-    } catch (err) {
-      console.error('Anti-nuke error:', err);
-    }
+  if (actions.length >= LIMITS[type]) {
+    await punish(member, type);
   }
+}
 
-  return false;
+// ==========================
+// EXPORTS
+// ==========================
+
+export async function antiChannelDelete(channel, executor) {
+  await handleAction('channelDelete', channel.guild, executor);
+}
+
+export async function antiChannelCreate(channel, executor) {
+  await handleAction('channelCreate', channel.guild, executor);
+}
+
+export async function antiRoleCreate(role, executor) {
+  await handleAction('roleCreate', role.guild, executor);
+}
+
+export async function antiBan(guild, executor) {
+  await handleAction('ban', guild, executor);
 }

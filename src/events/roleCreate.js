@@ -3,6 +3,7 @@ import { logEvent, EVENT_TYPES } from '../services/loggingService.js';
 import { logger } from '../utils/logger.js';
 import { buildRoleAuditFields } from '../utils/roleLogFields.js';
 import { sendLog } from '../utils/discordLogger.js';
+import { antiRoleCreate } from '../security/antiNuke.js'; // 🔥 NUEVO
 
 export default {
   name: Events.GuildRoleCreate,
@@ -14,7 +15,7 @@ export default {
 
       const fields = buildRoleAuditFields(role);
 
-      // 🔍 AUDIT LOG
+      let executorObj = null;
       let executor = 'Desconocido';
 
       try {
@@ -26,6 +27,7 @@ export default {
         const log = fetchedLogs.entries.first();
 
         if (log && log.target.id === role.id) {
+          executorObj = log.executor;
           executor = log.executor?.tag || 'Desconocido';
         }
 
@@ -33,7 +35,11 @@ export default {
         logger.warn('Error leyendo audit logs (roleCreate):', err);
       }
 
-      // 🔥 TU SISTEMA
+      // 🔥 ANTI-NUKE
+      if (executorObj) {
+        await antiRoleCreate(role, executorObj);
+      }
+
       await logEvent({
         client: role.client,
         guildId: role.guild.id,
@@ -44,7 +50,6 @@ export default {
         }
       });
 
-      // 🔥 DISCORD LOG
       await sendLog({
         title: '🆕 Rol creado',
         description: `${role.name}`,

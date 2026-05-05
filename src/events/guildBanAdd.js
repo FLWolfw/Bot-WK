@@ -1,6 +1,7 @@
 import { Events, AuditLogEvent } from 'discord.js';
 import { sendLog } from '../utils/discordLogger.js';
 import { logger } from '../utils/logger.js';
+import { antiBan } from '../security/antiNuke.js'; // 🔥 NUEVO
 
 export default {
   name: Events.GuildBanAdd,
@@ -9,7 +10,6 @@ export default {
     try {
       const { guild, user } = ban;
 
-      // 🔍 Buscar en audit logs
       const fetchedLogs = await guild.fetchAuditLogs({
         limit: 1,
         type: AuditLogEvent.MemberBanAdd
@@ -17,15 +17,21 @@ export default {
 
       const log = fetchedLogs.entries.first();
 
+      let executorObj = null;
       let executor = 'Desconocido';
       let reason = 'Sin razón';
 
       if (log) {
+        executorObj = log.executor;
         executor = log.executor?.tag || 'Desconocido';
         reason = log.reason || 'Sin razón';
       }
 
-      // 📊 Enviar log
+      // 🔥 ANTI-NUKE
+      if (executorObj) {
+        await antiBan(guild, executorObj);
+      }
+
       await sendLog({
         title: '🔨 Usuario baneado',
         description: `${user.tag} fue baneado`,
