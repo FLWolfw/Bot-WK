@@ -1,37 +1,24 @@
-import {
-  Events
-} from 'discord.js';
+import { Events } from 'discord.js';
 
-import {
-  getGuildConfig
-} from '../services/guildConfigService.js';
+import { getGuildConfig } from '../services/guildConfigService.js';
 
 import {
   getServerCounters,
   updateCounter
 } from '../services/serverstatsService.js';
 
-import {
-  setBirthday as dbSetBirthday
-} from '../utils/database.js';
+import { setBirthday as dbSetBirthday } from '../utils/database.js';
 
-import {
-  logger
-} from '../utils/logger.js';
+import { logger } from '../utils/logger.js';
 
-import {
-  t
-} from '../languages/index.js';
+import { t } from '../languages/index.js';
 
 export default {
-
   name: Events.GuildMemberAdd,
   once: false,
 
   async execute(member) {
-
     try {
-
       const { guild, user } = member;
 
       // =====================================
@@ -48,7 +35,6 @@ export default {
       // =====================================
 
       if (config.welcome?.enabled) {
-
         let channel = null;
 
         if (config.welcome?.channel) {
@@ -66,9 +52,7 @@ export default {
         }
 
         if (channel) {
-
           try {
-
             let message =
               config.welcome?.message ||
               '🎉 Bienvenido {user} a {server}';
@@ -96,145 +80,62 @@ export default {
             await channel.send({
               embeds: [embed]
             });
-
           } catch (err) {
             console.log('Error enviando welcome:', err);
           }
-
         }
       }
 
       // =====================================
-// 📊 LOG MEMBER JOIN (FORZADO ADVANCED)
-// =====================================
+      // 📊 LOG MEMBER JOIN (FIX FINAL)
+      // =====================================
 
-try {
+      try {
+        if (!config.logs?.enabled) return;
 
-  if (!config.logs?.enabled) return;
+        let logChannel = null;
 
-  let logChannel = null;
+        // 🔥 SIEMPRE INTENTA CATEGORÍA PRIMERO
+        if (config.logs.categories?.member) {
+          logChannel = guild.channels.cache.get(
+            config.logs.categories.member
+          );
+        }
 
-  // 🔥 PRIORIDAD 1 → CATEGORY (SIEMPRE)
-  if (config.logs.categories?.member) {
-
-    logChannel =
-      guild.channels.cache.get(
-        config.logs.categories.member
-      );
-
-  }
-
-  // 🔥 PRIORIDAD 2 → SINGLE
-  if (!logChannel && config.logs.channel) {
-
-    logChannel =
-      guild.channels.cache.get(
-        config.logs.channel
-      );
-
-  }
-
-  if (!logChannel) return;
-
-  const embed = {
-
-    color: 0x00ffcc,
-
-    title: '👤 Member Joined',
-
-    description: `${user} joined the server`,
-
-    fields: [
-
-      {
-        name: 'User',
-        value: `${user.tag} (${user.id})`,
-        inline: true
-      },
-
-      {
-        name: 'Members',
-        value: guild.memberCount.toString(),
-        inline: true
-      },
-
-      {
-        name: 'Created',
-        value: `<t:${Math.floor(user.createdTimestamp / 1000)}:R>`,
-        inline: true
-      }
-
-    ],
-
-    thumbnail: {
-      url: user.displayAvatarURL({ dynamic: true })
-    },
-
-    timestamp: new Date()
-
-  };
-
-  await logChannel.send({
-    embeds: [embed]
-  });
-
-} catch (error) {
-
-  logger.debug(
-    'Error logging member join:',
-    error
-  );
-
-}
-
-        // 🔥 MODO NORMAL (fallback)
+        // 🔥 SI NO HAY → USA GLOBAL
         if (!logChannel && config.logs.channel) {
-
-          logChannel =
-            guild.channels.cache.get(
-              config.logs.channel
-            );
-
+          logChannel = guild.channels.cache.get(
+            config.logs.channel
+          );
         }
 
         if (!logChannel) return;
 
         const embed = {
-
           color: 0x00ffcc,
-
           title: '👤 Member Joined',
-
           description: `${user} joined the server`,
-
           fields: [
-
             {
               name: 'User',
               value: `${user.tag} (${user.id})`,
               inline: true
             },
-
             {
               name: 'Members',
               value: guild.memberCount.toString(),
               inline: true
             },
-
             {
               name: 'Created',
               value: `<t:${Math.floor(user.createdTimestamp / 1000)}:R>`,
               inline: true
             }
-
           ],
-
           thumbnail: {
             url: user.displayAvatarURL({ dynamic: true })
           },
-
           timestamp: new Date()
-
         };
 
         await logChannel.send({
@@ -242,12 +143,7 @@ try {
         });
 
       } catch (error) {
-
-        logger.debug(
-          'Error logging member join:',
-          error
-        );
-
+        logger.debug('Error logging member join:', error);
       }
 
       // =====================================
@@ -255,39 +151,28 @@ try {
       // =====================================
 
       try {
-
-        const counters =
-          await getServerCounters(
-            member.client,
-            guild.id
-          );
+        const counters = await getServerCounters(
+          member.client,
+          guild.id
+        );
 
         for (const counter of counters) {
-
           if (
             counter &&
             counter.type &&
             counter.channelId &&
             counter.enabled !== false
           ) {
-
             await updateCounter(
               member.client,
               guild,
               counter
             );
-
           }
-
         }
 
       } catch (error) {
-
-        logger.debug(
-          'Error updating counters:',
-          error
-        );
-
+        logger.debug('Error updating counters:', error);
       }
 
       // =====================================
@@ -295,7 +180,6 @@ try {
       // =====================================
 
       try {
-
         const backupKey =
           `guild:${guild.id}:birthdays:left`;
 
@@ -303,7 +187,6 @@ try {
           (await member.client.db.get(backupKey)) || {};
 
         if (backup[user.id]) {
-
           const { month, day } =
             backup[user.id];
 
@@ -321,27 +204,17 @@ try {
             backupKey,
             backup
           );
-
         }
 
       } catch (error) {
-
-        logger.debug(
-          'Error restoring birthday:',
-          error
-        );
-
+        logger.debug('Error restoring birthday:', error);
       }
 
     } catch (error) {
-
       logger.error(
         'Error in guildMemberAdd:',
         error
       );
-
     }
-
   }
-
 };
