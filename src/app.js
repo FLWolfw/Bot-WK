@@ -15,7 +15,7 @@ import { loadCommands, registerCommands as registerSlashCommands } from './handl
 // 🔥 DASHBOARD
 import { setupDashboard } from './dashboard/index.js';
 
-// 🔥 NUEVO LOADER (logs)
+// 🔥 LOADER ÚNICO DE EVENTOS
 import loadEvents from './handlers/events.js';
 
 class TitanBot extends Client {
@@ -61,12 +61,8 @@ class TitanBot extends Client {
       startupLog('Loading commands...');
       await loadCommands(this);
 
-      // ✅ MUY IMPORTANTE (NO BORRAR)
-      startupLog('Loading handlers...');
-      await this.loadHandlers();
-
-      // 🔥 LOADER DE LOGS
-      console.log('🔥 Cargando eventos (logs)...');
+      // 🔥 SOLO UN LOADER (SIN DUPLICADOS)
+      console.log('🔥 Cargando eventos...');
       await loadEvents(this);
 
       startupLog('Logging into Discord...');
@@ -129,18 +125,6 @@ class TitanBot extends Client {
       }
     } catch (error) {
       logger.error('Error updating counters:', error);
-    }
-  }
-
-  async loadHandlers() {
-    const handlers = [
-      { path: 'events' },
-      { path: 'interactions' }
-    ];
-
-    for (const handler of handlers) {
-      const module = await import(`./handlers/${handler.path}.js`);
-      await module.default(this);
     }
   }
 
