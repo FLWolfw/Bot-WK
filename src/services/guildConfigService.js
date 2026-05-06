@@ -13,10 +13,30 @@ const DEFAULT_CONFIG = {
       '🎉 Bienvenido {user} a {server}'
   },
 
-  // 📊 LOGS
+  // 📊 ADVANCED LOGS
   logs: {
+
     enabled: false,
-    channel: null
+
+    mode: 'single',
+
+    channel: null,
+
+    categories: {
+
+      message: null,
+
+      member: null,
+
+      moderation: null,
+
+      voice: null,
+
+      role: null,
+
+      channel: null
+
+    }
   }
 };
 
@@ -44,7 +64,10 @@ export async function getGuildConfig(
 
   }
 
+  // ========================================
   // 🔥 MIGRACIÓN AUTOMÁTICA
+  // ========================================
+
   let updated = false;
 
   // 🌎 LANGUAGE
@@ -59,6 +82,7 @@ export async function getGuildConfig(
   if (!config.welcome) {
 
     config.welcome = {
+
       enabled:
         config.welcome_enabled || false,
 
@@ -68,21 +92,75 @@ export async function getGuildConfig(
       message:
         config.welcome_message ||
         '🎉 Bienvenido {user} a {server}'
+
     };
 
     updated = true;
 
   }
 
+  // ========================================
   // 📊 LOGS
+  // ========================================
+
   if (!config.logs) {
 
     config.logs = {
+
       enabled:
         config.logging_enabled || false,
 
+      mode: 'single',
+
       channel:
-        config.log_channel || null
+        config.log_channel || null,
+
+      categories: {
+
+        message: null,
+
+        member: null,
+
+        moderation: null,
+
+        voice: null,
+
+        role: null,
+
+        channel: null
+
+      }
+    };
+
+    updated = true;
+
+  }
+
+  // 🔥 MIGRAR MODE
+  if (!config.logs.mode) {
+
+    config.logs.mode = 'single';
+    updated = true;
+
+  }
+
+  // 🔥 MIGRAR CATEGORIES
+  if (!config.logs.categories) {
+
+    config.logs.categories = {
+
+      message: null,
+
+      member: null,
+
+      moderation: null,
+
+      voice: null,
+
+      role: null,
+
+      channel: null
+
     };
 
     updated = true;
@@ -202,6 +280,7 @@ export async function updateLogging(
   return config;
 }
 
+// 🔥 SINGLE CHANNEL
 export async function updateLogChannel(
   db,
   guildId,
@@ -215,6 +294,61 @@ export async function updateLogChannel(
     );
 
   config.logs.channel =
+    channelId;
+
+  await db.set(
+    `guild:${guildId}:config`,
+    config
+  );
+
+  return config;
+}
+
+// 🔥 LOG MODE
+export async function updateLogMode(
+  db,
+  guildId,
+  mode
+) {
+
+  const config =
+    await getGuildConfig(
+      db,
+      guildId
+    );
+
+  config.logs.mode =
+    mode;
+
+  await db.set(
+    `guild:${guildId}:config`,
+    config
+  );
+
+  return config;
+}
+
+// 🔥 CATEGORY LOGS
+export async function updateLogCategory(
+  db,
+  guildId,
+  category,
+  channelId
+) {
+
+  const config =
+    await getGuildConfig(
+      db,
+      guildId
+    );
+
+  if (!config.logs.categories) {
+
+    config.logs.categories = {};
+
+  }
+
+  config.logs.categories[category] =
     channelId;
 
   await db.set(
