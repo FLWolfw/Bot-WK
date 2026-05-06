@@ -368,25 +368,25 @@ export function setupDashboard(app, client) {
         serverId
       );
 
-    const channels =
+    const channels = guild.channels.cache
+  .filter(c => c.type === 0)
+  .map(c => `
 
-      guild.channels.cache
+    <option
+      value="${c.id}"
+      ${
+        config.logs?.channel === c.id
+          ? 'selected'
+          : ''
+      }
+    >
 
-        .filter(
-          c => c.type === 0
-        )
+      #${c.name}
 
-        .map(c => `
+    </option>
 
-          <option value="${c.id}">
-
-            #${c.name}
-
-          </option>
-
-        `)
-
-        .join('');
+  `)
+  .join('');
 
     res.send(`
 
