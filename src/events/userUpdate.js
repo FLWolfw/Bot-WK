@@ -1,107 +1,217 @@
-import { Events } from 'discord.js';
-import { logEvent, EVENT_TYPES } from '../services/loggingService.js';
-import { logger } from '../utils/logger.js';
-import { sendLog } from '../utils/discordLogger.js';
+import {
+  Events
+} from 'discord.js';
+
+import {
+  logEvent,
+  EVENT_TYPES
+} from '../services/loggingService.js';
+
+import { logger }
+  from '../utils/logger.js';
 
 // 🔥 Anti-duplicados
-const avatarCooldown = new Map();
-const AVATAR_COOLDOWN_MS = 5000;
+const avatarCooldown =
+  new Map();
+
+const AVATAR_COOLDOWN_MS =
+  5000;
 
 export default {
+
   name: Events.UserUpdate,
+
   once: false,
 
-  async execute(oldUser, newUser) {
+  async execute(
+    oldUser,
+    newUser
+  ) {
+
     try {
+
       if (oldUser.bot) return;
 
-      const usernameChanged = oldUser.username !== newUser.username;
-      const discriminatorChanged = oldUser.discriminator !== newUser.discriminator;
+      const usernameChanged =
+        oldUser.username !==
+        newUser.username;
 
-      const oldAvatar = oldUser.displayAvatarURL({ size: 1024 });
-      const newAvatar = newUser.displayAvatarURL({ size: 1024 });
+      const discriminatorChanged =
+        oldUser.discriminator !==
+        newUser.discriminator;
 
-      const avatarChanged = oldAvatar !== newAvatar;
+      const oldAvatar =
+        oldUser.displayAvatarURL({
+          size: 1024
+        });
 
-      if (!usernameChanged && !discriminatorChanged && !avatarChanged) return;
+      const newAvatar =
+        newUser.displayAvatarURL({
+          size: 1024
+        });
 
-      // 🔥 Verifica que el usuario esté en AL MENOS un servidor del bot
-      const isInGuild = newUser.client.guilds.cache.some(g => 
-        g.members.cache.has(newUser.id)
-      );
+      const avatarChanged =
+        oldAvatar !== newAvatar;
+
+      if (
+        !usernameChanged &&
+        !discriminatorChanged &&
+        !avatarChanged
+      ) {
+        return;
+      }
+
+      // 🔥 Verifica que esté en algún guild
+      const isInGuild =
+        newUser.client.guilds.cache.some(
+          g =>
+            g.members.cache.has(
+              newUser.id
+            )
+        );
 
       if (!isInGuild) return;
 
       // =====================================
-      // 🧠 AVATAR (CORREGIDO)
+      // 🧠 AVATAR
       // =====================================
+
       if (avatarChanged) {
 
-        const lastChange = avatarCooldown.get(newUser.id);
-        const now = Date.now();
+        const lastChange =
+          avatarCooldown.get(
+            newUser.id
+          );
 
-        if (lastChange && now - lastChange < AVATAR_COOLDOWN_MS) {
-          return; // ❌ evita duplicado
+        const now =
+          Date.now();
+
+        if (
+          lastChange &&
+          now - lastChange <
+            AVATAR_COOLDOWN_MS
+        ) {
+
+          return;
+
         }
 
-        avatarCooldown.set(newUser.id, now);
+        avatarCooldown.set(
+          newUser.id,
+          now
+        );
 
-        await sendLog({
-          title: '🧠 Cambio de avatar global',
-          description: `${newUser.tag} cambió su avatar`,
-          color: 0x5865f2,
-          thumbnail: newAvatar,
-          fields: [
-            {
-              name: 'Antes',
-              value: `[Ver avatar](${oldAvatar})`,
-              inline: true
-            },
-            {
-              name: 'Ahora',
-              value: `[Ver avatar](${newAvatar})`,
-              inline: true
-            }
-          ]
+        // 🔥 NUEVO SISTEMA
+        await logEvent({
+          client: newUser.client,
+          guildId:
+            newUser.client.guilds.cache.first()?.id,
+          eventType:
+            EVENT_TYPES.MEMBER_UPDATE,
+          data: {
+            description:
+              `${newUser.tag} changed their avatar`,
+            userId:
+              newUser.id,
+            fields: [
+              {
+                name: '🖼️ Old Avatar',
+                value:
+                  `[View Avatar](${oldAvatar})`,
+                inline: true
+              },
+              {
+                name: '🖼️ New Avatar',
+                value:
+                  `[View Avatar](${newAvatar})`,
+                inline: true
+              }
+            ]
+          }
         });
+
       }
 
       // =====================================
-      // ✏️ USERNAME (SIN DUPLICADOS)
+      // ✏️ USERNAME
       // =====================================
-      if (usernameChanged || discriminatorChanged) {
+
+      if (
+        usernameChanged ||
+        discriminatorChanged
+      ) {
 
         const fields = [];
 
         if (usernameChanged) {
+
           fields.push(
-            { name: 'Old Username', value: oldUser.username, inline: true },
-            { name: 'New Username', value: newUser.username, inline: true }
+            {
+              name:
+                'Old Username',
+              value:
+                oldUser.username,
+              inline: true
+            },
+            {
+              name:
+                'New Username',
+              value:
+                newUser.username,
+              inline: true
+            }
           );
+
         }
 
-        if (discriminatorChanged) {
+        if (
+          discriminatorChanged
+        ) {
+
           fields.push(
-            { name: 'Old Tag', value: `#${oldUser.discriminator}`, inline: true },
-            { name: 'New Tag', value: `#${newUser.discriminator}`, inline: true }
+            {
+              name:
+                'Old Tag',
+              value:
+                `#${oldUser.discriminator}`,
+              inline: true
+            },
+            {
+              name:
+                'New Tag',
+              value:
+                `#${newUser.discriminator}`,
+              inline: true
+            }
           );
+
         }
 
-        // 🔥 solo logea una vez (no por guild)
+        // 🔥 NUEVO SISTEMA
         await logEvent({
           client: newUser.client,
-          guildId: newUser.client.guilds.cache.first()?.id,
-          eventType: EVENT_TYPES.MEMBER_NAME_CHANGE,
+          guildId:
+            newUser.client.guilds.cache.first()?.id,
+          eventType:
+            EVENT_TYPES.MEMBER_NAME_CHANGE,
           data: {
-            description: `${newUser.tag} updated their username`,
-            userId: newUser.id,
+            description:
+              `${newUser.tag} updated their username`,
+            userId:
+              newUser.id,
             fields
           }
         });
+
       }
 
     } catch (error) {
-      logger.error('Error in userUpdate event:', error);
+
+      logger.error(
+        'Error in userUpdate event:',
+        error
+      );
+
     }
   }
 };
