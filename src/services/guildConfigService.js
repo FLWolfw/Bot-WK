@@ -1,140 +1,253 @@
-export async function getGuildConfig(db, guildId) {
+const DEFAULT_CONFIG = {
 
-  const key = `guild:${guildId}:config`;
+  guild_id: null,
 
-  let config = await db.get(key, null);
+  // 🌎 LANGUAGE
+  language: 'es',
 
+  // 🔥 WELCOME
+  welcome: {
+    enabled: false,
+    channel: null,
+    message:
+      '🎉 Bienvenido {user} a {server}'
+  },
+
+  // 📊 LOGS
+  logs: {
+    enabled: false,
+    channel: null
+  }
+};
+
+// 🔥 OBTENER CONFIG
+export async function getGuildConfig(
+  db,
+  guildId
+) {
+
+  const key =
+    `guild:${guildId}:config`;
+
+  let config =
+    await db.get(key, null);
+
+  // 🔥 CREAR CONFIG NUEVA
   if (!config) {
+
     config = {
-      guild_id: guildId,
-
-      // 🔥 WELCOME
-      welcome_enabled: false,
-      welcome_channel: null,
-      welcome_message: "🎉 Bienvenido {user} a {server}",
-
-      // 🔥 LOGS
-      logging_enabled: false,
-      log_channel: null
+      ...DEFAULT_CONFIG,
+      guild_id: guildId
     };
 
     await db.set(key, config);
+
+  }
+
+  // 🔥 MIGRACIÓN AUTOMÁTICA
+  let updated = false;
+
+  // 🌎 LANGUAGE
+  if (!config.language) {
+
+    config.language = 'es';
+    updated = true;
+
+  }
+
+  // 🔥 WELCOME
+  if (!config.welcome) {
+
+    config.welcome = {
+      enabled:
+        config.welcome_enabled || false,
+
+      channel:
+        config.welcome_channel || null,
+
+      message:
+        config.welcome_message ||
+        '🎉 Bienvenido {user} a {server}'
+    };
+
+    updated = true;
+
+  }
+
+  // 📊 LOGS
+  if (!config.logs) {
+
+    config.logs = {
+      enabled:
+        config.logging_enabled || false,
+
+      channel:
+        config.log_channel || null
+    };
+
+    updated = true;
+
+  }
+
+  // 🔥 GUARDAR MIGRACIÓN
+  if (updated) {
+
+    await db.set(
+      key,
+      config
+    );
+
   }
 
   return config;
 }
 
-// 🔥 TOGGLE WELCOME
-export async function updateWelcome(db, guildId, value) {
+// ========================================
+// 🔥 WELCOME
+// ========================================
 
-  const key = `guild:${guildId}:config`;
+export async function updateWelcome(
+  db,
+  guildId,
+  value
+) {
 
-  let config = await db.get(key, null);
+  const config =
+    await getGuildConfig(
+      db,
+      guildId
+    );
 
-  if (!config) {
-    config = {
-      guild_id: guildId,
-      welcome_enabled: false,
-      welcome_channel: null,
-      welcome_message: "🎉 Bienvenido {user} a {server}",
-      logging_enabled: false,
-      log_channel: null
-    };
-  }
+  config.welcome.enabled =
+    value;
 
-  config.welcome_enabled = value;
+  await db.set(
+    `guild:${guildId}:config`,
+    config
+  );
 
-  await db.set(key, config);
+  return config;
 }
 
-// 🔥 GUARDAR CANAL WELCOME
-export async function updateWelcomeChannel(db, guildId, channelId) {
+export async function updateWelcomeChannel(
+  db,
+  guildId,
+  channelId
+) {
 
-  const key = `guild:${guildId}:config`;
+  const config =
+    await getGuildConfig(
+      db,
+      guildId
+    );
 
-  let config = await db.get(key, null);
+  config.welcome.channel =
+    channelId;
 
-  if (!config) {
-    config = {
-      guild_id: guildId,
-      welcome_enabled: false,
-      welcome_channel: null,
-      welcome_message: "🎉 Bienvenido {user} a {server}",
-      logging_enabled: false,
-      log_channel: null
-    };
-  }
+  await db.set(
+    `guild:${guildId}:config`,
+    config
+  );
 
-  config.welcome_channel = channelId;
-
-  await db.set(key, config);
+  return config;
 }
 
-// 🔥 GUARDAR MENSAJE
-export async function updateWelcomeMessage(db, guildId, message) {
+export async function updateWelcomeMessage(
+  db,
+  guildId,
+  message
+) {
 
-  const key = `guild:${guildId}:config`;
+  const config =
+    await getGuildConfig(
+      db,
+      guildId
+    );
 
-  let config = await db.get(key, null);
+  config.welcome.message =
+    message;
 
-  if (!config) {
-    config = {
-      guild_id: guildId,
-      welcome_enabled: false,
-      welcome_channel: null,
-      welcome_message: "🎉 Bienvenido {user} a {server}",
-      logging_enabled: false,
-      log_channel: null
-    };
-  }
+  await db.set(
+    `guild:${guildId}:config`,
+    config
+  );
 
-  config.welcome_message = message;
-
-  await db.set(key, config);
+  return config;
 }
 
-// 🔥 TOGGLE LOGS
-export async function updateLogging(db, guildId, value) {
+// ========================================
+// 📊 LOGS
+// ========================================
 
-  const key = `guild:${guildId}:config`;
+export async function updateLogging(
+  db,
+  guildId,
+  value
+) {
 
-  let config = await db.get(key, null);
+  const config =
+    await getGuildConfig(
+      db,
+      guildId
+    );
 
-  if (!config) {
-    config = {
-      guild_id: guildId,
-      welcome_enabled: false,
-      welcome_channel: null,
-      welcome_message: "🎉 Bienvenido {user} a {server}",
-      logging_enabled: false,
-      log_channel: null
-    };
-  }
+  config.logs.enabled =
+    value;
 
-  config.logging_enabled = value;
+  await db.set(
+    `guild:${guildId}:config`,
+    config
+  );
 
-  await db.set(key, config);
+  return config;
 }
 
-// 🔥 GUARDAR CANAL LOGS
-export async function updateLogChannel(db, guildId, channelId) {
+export async function updateLogChannel(
+  db,
+  guildId,
+  channelId
+) {
 
-  const key = `guild:${guildId}:config`;
+  const config =
+    await getGuildConfig(
+      db,
+      guildId
+    );
 
-  let config = await db.get(key, null);
+  config.logs.channel =
+    channelId;
 
-  if (!config) {
-    config = {
-      guild_id: guildId,
-      welcome_enabled: false,
-      welcome_channel: null,
-      welcome_message: "🎉 Bienvenido {user} a {server}",
-      logging_enabled: false,
-      log_channel: null
-    };
-  }
+  await db.set(
+    `guild:${guildId}:config`,
+    config
+  );
 
-  config.log_channel = channelId;
+  return config;
+}
 
-  await db.set(key, config);
+// ========================================
+// 🌎 LANGUAGE
+// ========================================
+
+export async function updateLanguage(
+  db,
+  guildId,
+  language
+) {
+
+  const config =
+    await getGuildConfig(
+      db,
+      guildId
+    );
+
+  config.language =
+    language;
+
+  await db.set(
+    `guild:${guildId}:config`,
+    config
+  );
+
+  return config;
 }
