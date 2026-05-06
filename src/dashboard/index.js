@@ -64,23 +64,16 @@ export function setupDashboard(app, client) {
     }
   });
 
-  // 🧠 DASHBOARD (FILTRADO BIEN)
+  // 🧠 DASHBOARD
   app.get('/dashboard', (req, res) => {
 
-    if (!req.session.user) {
-      return res.redirect('/login');
-    }
+    if (!req.session.user) return res.redirect('/login');
 
     const user = req.session.user;
     const guilds = req.session.guilds || [];
 
-    // 🔥 Admin
     const adminGuilds = guilds.filter(g => (g.permissions & 0x8) === 0x8);
-
-    // 🔥 Donde está el bot
     const botGuildIds = client.guilds.cache.map(g => g.id);
-
-    // 🔥 FINAL
     const filteredGuilds = adminGuilds.filter(g => botGuildIds.includes(g.id));
 
     res.send(`
@@ -95,25 +88,18 @@ export function setupDashboard(app, client) {
 
           <p>Usuario: ${user.username}</p>
           <p>Bot activo ✅</p>
-          <p>Servidores (bot): ${client.guilds.cache.size}</p>
 
           <h2>Servidores donde está el bot</h2>
 
-          ${
-            filteredGuilds.length === 0
-              ? `<p style="color:orange;">No tienes servidores válidos.</p>`
-              : `
-                <ul>
-                  ${filteredGuilds.map(g => `
-                    <li>
-                      <a href="/server/${g.id}" style="color:#00ffcc;">
-                        ${g.name}
-                      </a>
-                    </li>
-                  `).join('')}
-                </ul>
-              `
-          }
+          <ul>
+            ${filteredGuilds.map(g => `
+              <li>
+                <a href="/server/${g.id}" style="color:#00ffcc;">
+                  ${g.name}
+                </a>
+              </li>
+            `).join('')}
+          </ul>
 
           <br>
           <a href="/logout" style="color:red;">Cerrar sesión</a>
@@ -123,18 +109,26 @@ export function setupDashboard(app, client) {
     `);
   });
 
-  // 🧠 PANEL POR SERVIDOR
+  // 🧠 PANEL POR SERVIDOR (CON CANALES)
   app.get('/server/:id', async (req, res) => {
 
-    if (!req.session.user) {
-      return res.redirect('/login');
-    }
+    if (!req.session.user) return res.redirect('/login');
 
     const serverId = req.params.id;
 
     const { getGuildConfig } = await import('../services/guildConfigService.js');
-
     const config = await getGuildConfig(client.db, serverId);
+
+    const guild = client.guilds.cache.get(serverId);
+
+    if (!guild) {
+      return res.send('❌ El bot no está en este servidor');
+    }
+
+    const channels = guild.channels.cache
+      .filter(c => c.type === 0) // solo texto
+      .map(c => `<option value="${c.id}" ${config.welcome_channel === c.id ? 'selected' : ''}>#${c.name}</option>`)
+      .join('');
 
     res.send(`
       <html>
@@ -154,6 +148,15 @@ export function setupDashboard(app, client) {
             </button>
           </form>
 
+          <h3>Canal de bienvenida</h3>
+
+          <form method="POST" action="/server/${serverId}/channel">
+            <select name="channel">
+              ${channels}
+            </select>
+            <button type="submit">Guardar canal</button>
+          </form>
+
           <br>
           <a href="/dashboard">⬅ Volver</a>
 
@@ -162,7 +165,7 @@ export function setupDashboard(app, client) {
     `);
   });
 
-  // 🔥 GUARDAR EN DB
+  // 🔥 ACTIVAR/DESACTIVAR
   app.post('/server/:id/welcome', async (req, res) => {
 
     const serverId = req.params.id;
@@ -176,11 +179,22 @@ export function setupDashboard(app, client) {
     res.redirect(`/server/${serverId}`);
   });
 
+  // 🔥 GUARDAR CANAL
+  app.post('/server/:id/channel', async (req, res) => {
+
+    const serverId = req.params.id;
+    const channelId = req.body.channel;
+
+    const { updateWelcomeChannel } = await import('../services/guildConfigService.js');
+
+    await updateWelcomeChannel(client.db, serverId, channelId);
+
+    res.redirect(`/server/${serverId}`);
+  });
+
   // 🔓 LOGOUT
   app.get('/logout', (req, res) => {
-    req.session.destroy(() => {
-      res.redirect('/');
-    });
+    req.session.destroy(() => res.redirect('/'));
   });
 
 }
