@@ -3,6 +3,16 @@ import axios from 'axios';
 import express from 'express';
 import path from 'path';
 
+import {
+  fileURLToPath
+} from 'url';
+
+const __filename =
+  fileURLToPath(import.meta.url);
+
+const __dirname =
+  path.dirname(__filename);
+
 export function setupDashboard(app, client) {
 
   console.log('🔥 Dashboard cargado');
@@ -16,13 +26,18 @@ export function setupDashboard(app, client) {
   // =====================================
 
   app.use(
+
     '/assets',
+
     express.static(
+
       path.join(
-        process.cwd(),
-        'src/dashboard/public'
+        __dirname,
+        'public'
       )
+
     )
+
   );
 
   // =====================================
@@ -389,8 +404,6 @@ export function setupDashboard(app, client) {
 
             </div>
 
-            <!-- 🌎 LANGUAGE -->
-
             <div class="card">
 
               <h2>
@@ -448,8 +461,6 @@ export function setupDashboard(app, client) {
               </form>
 
             </div>
-
-            <!-- 👋 WELCOME -->
 
             <div class="card">
 
@@ -534,8 +545,6 @@ export function setupDashboard(app, client) {
               </form>
 
             </div>
-
-            <!-- 📊 LOGS -->
 
             <div class="card">
 
