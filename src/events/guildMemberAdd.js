@@ -21,22 +21,30 @@ export default {
 
         let channel = null;
 
-        // 👉 Canal seleccionado en dashboard
+        // 👉 Canal seleccionado
         if (config.welcome_channel) {
           channel = guild.channels.cache.get(config.welcome_channel);
         }
 
-        // 👉 fallback si no hay canal
+        // 👉 fallback
         if (!channel) {
           channel = guild.systemChannel || guild.channels.cache
             .filter(c => c.isTextBased())
             .first();
         }
 
-        // 👉 enviar mensaje
+        // 👉 MENSAJE CUSTOM
         if (channel) {
           try {
-            await channel.send(`🎉 Bienvenido ${user} a **${guild.name}**`);
+
+            let message = config.welcome_message || "🎉 Bienvenido {user} a {server}";
+
+            message = message
+              .replace('{user}', `${user}`)
+              .replace('{server}', guild.name);
+
+            await channel.send(message);
+
           } catch (err) {
             console.log("Error enviando welcome:", err);
           }
@@ -110,6 +118,3 @@ export default {
     }
   }
 };
-
-
-

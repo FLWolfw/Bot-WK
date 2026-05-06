@@ -87,9 +87,8 @@ export function setupDashboard(app, client) {
                style="border-radius:50%">
 
           <p>Usuario: ${user.username}</p>
-          <p>Bot activo ✅</p>
 
-          <h2>Servidores donde está el bot</h2>
+          <h2>Servidores</h2>
 
           <ul>
             ${filteredGuilds.map(g => `
@@ -109,7 +108,7 @@ export function setupDashboard(app, client) {
     `);
   });
 
-  // 🧠 PANEL POR SERVIDOR (CON CANALES)
+  // 🧠 PANEL POR SERVIDOR
   app.get('/server/:id', async (req, res) => {
 
     if (!req.session.user) return res.redirect('/login');
@@ -121,12 +120,8 @@ export function setupDashboard(app, client) {
 
     const guild = client.guilds.cache.get(serverId);
 
-    if (!guild) {
-      return res.send('❌ El bot no está en este servidor');
-    }
-
     const channels = guild.channels.cache
-      .filter(c => c.type === 0) // solo texto
+      .filter(c => c.type === 0)
       .map(c => `<option value="${c.id}" ${config.welcome_channel === c.id ? 'selected' : ''}>#${c.name}</option>`)
       .join('');
 
@@ -136,26 +131,36 @@ export function setupDashboard(app, client) {
 
           <h1>Panel del servidor</h1>
 
-          <p>ID: ${serverId}</p>
+          <h3>Welcome</h3>
 
-          <h3>Welcome System</h3>
-
-          <p>Estado: ${config.welcome_enabled ? '🟢 Activado' : '🔴 Desactivado'}</p>
+          <p>Estado: ${config.welcome_enabled ? '🟢 ON' : '🔴 OFF'}</p>
 
           <form method="POST" action="/server/${serverId}/welcome">
-            <button type="submit">
-              ${config.welcome_enabled ? 'Desactivar' : 'Activar'}
-            </button>
+            <button>${config.welcome_enabled ? 'Desactivar' : 'Activar'}</button>
           </form>
 
-          <h3>Canal de bienvenida</h3>
+          <h3>Canal</h3>
 
           <form method="POST" action="/server/${serverId}/channel">
             <select name="channel">
               ${channels}
             </select>
-            <button type="submit">Guardar canal</button>
+            <button>Guardar</button>
           </form>
+
+          <h3>Mensaje</h3>
+
+          <form method="POST" action="/server/${serverId}/message">
+            <input 
+              type="text" 
+              name="message"
+              value="${config.welcome_message || ''}"
+              style="width:300px;"
+            >
+            <button>Guardar mensaje</button>
+          </form>
+
+          <p>Variables: {user}, {server}</p>
 
           <br>
           <a href="/dashboard">⬅ Volver</a>
@@ -165,34 +170,31 @@ export function setupDashboard(app, client) {
     `);
   });
 
-  // 🔥 ACTIVAR/DESACTIVAR
+  // 🔥 TOGGLE
   app.post('/server/:id/welcome', async (req, res) => {
-
     const serverId = req.params.id;
-
     const { getGuildConfig, updateWelcome } = await import('../services/guildConfigService.js');
-
     const config = await getGuildConfig(client.db, serverId);
-
     await updateWelcome(client.db, serverId, !config.welcome_enabled);
-
     res.redirect(`/server/${serverId}`);
   });
 
   // 🔥 GUARDAR CANAL
   app.post('/server/:id/channel', async (req, res) => {
-
     const serverId = req.params.id;
-    const channelId = req.body.channel;
-
     const { updateWelcomeChannel } = await import('../services/guildConfigService.js');
-
-    await updateWelcomeChannel(client.db, serverId, channelId);
-
+    await updateWelcomeChannel(client.db, serverId, req.body.channel);
     res.redirect(`/server/${serverId}`);
   });
 
-  // 🔓 LOGOUT
+  // 🔥 GUARDAR MENSAJE
+  app.post('/server/:id/message', async (req, res) => {
+    const serverId = req.params.id;
+    const { updateWelcomeMessage } = await import('../services/guildConfigService.js');
+    await updateWelcomeMessage(client.db, serverId, req.body.message);
+    res.redirect(`/server/${serverId}`);
+  });
+
   app.get('/logout', (req, res) => {
     req.session.destroy(() => res.redirect('/'));
   });
