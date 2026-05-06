@@ -21,28 +21,15 @@ export function setupDashboard(app, client) {
     extended: true
   }));
 
-  // =====================================
-  // 🎨 STATIC FILES
-  // =====================================
-
   app.use(
-
     '/assets',
-
     express.static(
-
       path.join(
         __dirname,
         'public'
       )
-
     )
-
   );
-
-  // =====================================
-  // 🔐 SESSION
-  // =====================================
 
   app.use(session({
 
@@ -51,7 +38,6 @@ export function setupDashboard(app, client) {
       'wk-secret',
 
     resave: false,
-
     saveUninitialized: false
 
   }));
@@ -175,11 +161,7 @@ export function setupDashboard(app, client) {
   app.get('/dashboard', (req, res) => {
 
     if (!req.session.user) {
-
-      return res.redirect(
-        '/login'
-      );
-
+      return res.redirect('/login');
     }
 
     const user =
@@ -362,35 +344,26 @@ export function setupDashboard(app, client) {
   app.get('/server/:id', async (req, res) => {
 
     if (!req.session.user) {
-
-      return res.redirect(
-        '/login'
-      );
-
+      return res.redirect('/login');
     }
 
     const serverId =
       req.params.id;
 
     const {
-
       getGuildConfig
-
     } =
-
       await import(
         '../services/guildConfigService.js'
       );
 
     const config =
-
       await getGuildConfig(
         client.db,
         serverId
       );
 
     const guild =
-
       client.guilds.cache.get(
         serverId
       );
@@ -448,13 +421,79 @@ export function setupDashboard(app, client) {
 
           <div class="main">
 
+            <!-- SERVER STATS -->
+
+            <div class="stats-grid">
+
+              <div class="stat-card">
+
+                <h3>
+                  👥 Members
+                </h3>
+
+                <p>
+                  ${guild.memberCount}
+                </p>
+
+              </div>
+
+              <div class="stat-card">
+
+                <h3>
+                  💬 Channels
+                </h3>
+
+                <p>
+                  ${guild.channels.cache.size}
+                </p>
+
+              </div>
+
+              <div class="stat-card">
+
+                <h3>
+                  🎭 Roles
+                </h3>
+
+                <p>
+                  ${guild.roles.cache.size}
+                </p>
+
+              </div>
+
+              <div class="stat-card">
+
+                <h3>
+                  🚀 Boosts
+                </h3>
+
+                <p>
+                  ${guild.premiumSubscriptionCount || 0}
+                </p>
+
+              </div>
+
+            </div>
+
+            <!-- SERVER CARD -->
+
             <div class="card">
 
               <h1>
                 ${guild.name}
               </h1>
 
+              <p style="
+                color:#00ffcc;
+                margin-top:10px;
+                font-size:16px;
+              ">
+                ⚙️ Configuración avanzada del servidor
+              </p>
+
             </div>
+
+            <!-- LANGUAGE -->
 
             <div class="card">
 
@@ -514,6 +553,8 @@ export function setupDashboard(app, client) {
 
             </div>
 
+            <!-- WELCOME -->
+
             <div class="card">
 
               <h2>
@@ -524,9 +565,7 @@ export function setupDashboard(app, client) {
 
                 ${
                   config.welcome?.enabled
-
                     ? '🟢 Enabled'
-
                     : '🔴 Disabled'
                 }
 
@@ -541,9 +580,7 @@ export function setupDashboard(app, client) {
 
                   ${
                     config.welcome?.enabled
-
                       ? 'Disable'
-
                       : 'Enable'
                   }
 
@@ -598,6 +635,8 @@ export function setupDashboard(app, client) {
 
             </div>
 
+            <!-- LOGS -->
+
             <div class="card">
 
               <h2>
@@ -608,9 +647,7 @@ export function setupDashboard(app, client) {
 
                 ${
                   config.logs?.enabled
-
                     ? '🟢 Enabled'
-
                     : '🔴 Disabled'
                 }
 
@@ -625,9 +662,7 @@ export function setupDashboard(app, client) {
 
                   ${
                     config.logs?.enabled
-
                       ? 'Disable Logs'
-
                       : 'Enable Logs'
                   }
 
@@ -676,23 +711,16 @@ export function setupDashboard(app, client) {
       req.params.id;
 
     const {
-
       updateLanguage
-
     } =
-
       await import(
         '../services/guildConfigService.js'
       );
 
     await updateLanguage(
-
       client.db,
-
       serverId,
-
       req.body.language
-
     );
 
     res.redirect(
@@ -711,31 +739,23 @@ export function setupDashboard(app, client) {
       req.params.id;
 
     const {
-
       getGuildConfig,
       updateWelcome
-
     } =
-
       await import(
         '../services/guildConfigService.js'
       );
 
     const config =
-
       await getGuildConfig(
         client.db,
         serverId
       );
 
     await updateWelcome(
-
       client.db,
-
       serverId,
-
       !config.welcome?.enabled
-
     );
 
     res.redirect(
@@ -750,23 +770,16 @@ export function setupDashboard(app, client) {
       req.params.id;
 
     const {
-
       updateWelcomeChannel
-
     } =
-
       await import(
         '../services/guildConfigService.js'
       );
 
     await updateWelcomeChannel(
-
       client.db,
-
       serverId,
-
       req.body.channel
-
     );
 
     res.redirect(
@@ -781,23 +794,16 @@ export function setupDashboard(app, client) {
       req.params.id;
 
     const {
-
       updateWelcomeMessage
-
     } =
-
       await import(
         '../services/guildConfigService.js'
       );
 
     await updateWelcomeMessage(
-
       client.db,
-
       serverId,
-
       req.body.message
-
     );
 
     res.redirect(
@@ -816,31 +822,23 @@ export function setupDashboard(app, client) {
       req.params.id;
 
     const {
-
       getGuildConfig,
       updateLogging
-
     } =
-
       await import(
         '../services/guildConfigService.js'
       );
 
     const config =
-
       await getGuildConfig(
         client.db,
         serverId
       );
 
     await updateLogging(
-
       client.db,
-
       serverId,
-
       !config.logs?.enabled
-
     );
 
     res.redirect(
@@ -855,23 +853,16 @@ export function setupDashboard(app, client) {
       req.params.id;
 
     const {
-
       updateLogChannel
-
     } =
-
       await import(
         '../services/guildConfigService.js'
       );
 
     await updateLogChannel(
-
       client.db,
-
       serverId,
-
       req.body.channel
-
     );
 
     res.redirect(
@@ -887,10 +878,9 @@ export function setupDashboard(app, client) {
   app.get('/logout', (req, res) => {
 
     req.session.destroy(() =>
-
       res.redirect('/')
-
     );
 
   });
+
 }
