@@ -2,8 +2,7 @@ import { Events, AuditLogEvent } from 'discord.js';
 import { getGuildConfig } from '../../services/guildConfigService.js';
 import { createLogEmbed } from '../../utils/logEmbed.js';
 
-// 🔥 NUEVO (TRACKER)
-import { startSession, endSession } from '../../services/voiceTracker.js';
+const voiceSessions = new Map(); // memoria temporal
 
 export default {
   name: Events.VoiceStateUpdate,
@@ -21,14 +20,14 @@ export default {
 
     let logChannel = null;
 
-    // CATEGORY
+    // 🔥 CATEGORY
     if (config.logs?.categories?.voice) {
       logChannel =
         guild.channels.cache.get(config.logs.categories.voice)
         || await guild.channels.fetch(config.logs.categories.voice).catch(() => null);
     }
 
-    // FALLBACK
+    // 🔥 FALLBACK
     if (!logChannel && config.logs?.channel) {
       logChannel =
         guild.channels.cache.get(config.logs.channel)
@@ -37,225 +36,224 @@ export default {
 
     if (!logChannel) return;
 
-    let title = null;
-    let description = null;
-    let color = '#00ffae';
+    const userId = member.id;
+    const key = `${guild.id}-${userId}`;
 
+    let action = null;
+    let color = '#00ffae';
+    let fields = [];
+
+    // =========================
     // 🔊 JOIN
+    // =========================
     if (!oldState.channel && newState.channel) {
 
-      // 🔥 INICIO TRACK TIEMPO
-      startSession(member.id, newState.channel.id);
+      voiceSessions.set(key, Date.now());
 
-      title = '🔊 Voice Join';
+      action = '🔊 Se unió a voice';
       color = '#00ffae';
 
-      description = `📥 Se unió a ${newState.channel}`;
+      fields.push({
+        name: '📥 Canal',
+        value: `${newState.channel}\n🆔 \`${newState.channel.id}\``
+      });
+
     }
 
-    // 🔇 LEAVE / DISCONNECT
+    // =========================
+    // 🔇 LEAVE
+    // =========================
     else if (oldState.channel && !newState.channel) {
 
-      // 🔥 CALCULAR TIEMPO
-      const duration = endSession(member.id);
+      let timeText = 'Desconocido';
+      let isAFK = false;
 
-      if (duration) {
-        const seconds = Math.floor(duration / 1000);
+      const joinTime = voiceSessions.get(key);
 
-        try {
-          await client.db.query(`
-            INSERT INTO voice_time (user_id, guild_id, seconds)
-            VALUES ($1, $2, $3)
-            ON CONFLICT (user_id, guild_id)
-            DO UPDATE SET seconds = voice_time.seconds + $3
-          `, [member.id, guild.id, seconds]);
+      if (joinTime) {
+        const seconds = Math.floor((Date.now() - joinTime) / 1000);
 
-        } catch (err) {
-          console.log('Error guardando tiempo voice:', err);
+        const h = Math.floor(seconds / 3600);
+        const m = Math.floor((seconds % 3600) / 60);
+        const s = seconds % 60;
+
+        timeText = `${h}h ${m}m ${s}s`;
+
+        // 🧠 AFK DETECCIÓN (menos de 15s)
+        if (seconds < 15) {
+          isAFK = true;
         }
+
+        // 💾 GUARDAR EN DB (CORRECTO)
+        try {
+          if (client.db.isAvailable()) {
+            await client.db.db.pool.query(`
+              INSERT INTO voice_time (user_id, guild_id, seconds)
+              VALUES ($1, $2, $3)
+              ON CONFLICT (user_id, guild_id)
+              DO UPDATE SET seconds = voice_time.seconds + $3
+            `, [userId, guild.id, seconds]);
+          }
+        } catch (err) {
+          console.log('Error guardando voice:', err);
+        }
+
+        voiceSessions.delete(key);
       }
 
-      let disconnector = 'Usuario (auto-salida)';
+      // 🔍 QUIÉN LO DESCONECTÓ
+      let mover = 'Usuario (auto)';
+      let movedByMod = false;
 
       try {
-        await new Promise(r => setTimeout(r, 1600));
+        await new Promise(res => setTimeout(res, 800));
 
         const logs = await guild.fetchAuditLogs({
-          limit: 20,
+          limit: 5,
           type: AuditLogEvent.MemberDisconnect
         });
 
-        const now = Date.now();
-
         const entry = logs.entries.find(e =>
-          e.target?.id === member.id &&
-          e.executor &&
-          (now - e.createdTimestamp) < 12000
-        );
-
-        if (entry) {
-          disconnector = `${entry.executor.tag} (${entry.executor.id})`;
-        }
-
-      } catch (err) {
-        console.log('Error disconnect:', err);
-      }
-
-      title = '🔇 Voice Leave';
-      color = '#ff4d4d';
-
-      description =
-        `📤 Salió de ${oldState.channel}\n\n` +
-        `🧑‍💼 Desconectado por:\n${disconnector}`;
-    }
-
-    // 🔁 MOVE
-    else if (
-      oldState.channel &&
-      newState.channel &&
-      oldState.channel.id !== newState.channel.id
-    ) {
-
-      let mover = 'Desconocido';
-
-      try {
-        await new Promise(r => setTimeout(r, 1600));
-
-        const logs = await guild.fetchAuditLogs({
-          limit: 20,
-          type: AuditLogEvent.MemberMove
-        });
-
-        const now = Date.now();
-
-        const entry = logs.entries.find(e =>
-          e.target?.id === member.id &&
-          e.executor &&
-          (now - e.createdTimestamp) < 12000
+          e.target?.id === userId &&
+          Date.now() - e.createdTimestamp < 5000
         );
 
         if (entry) {
           mover = `${entry.executor.tag} (${entry.executor.id})`;
+          movedByMod = true;
         }
 
-      } catch (err) {
-        console.log('Error move:', err);
-      }
+      } catch {}
 
-      title = '🔁 Voice Move';
+      action = '🔇 Salió de voice';
+      color = isAFK ? '#888888' : '#ff4d4d';
+
+      fields.push(
+        {
+          name: '📤 Canal',
+          value: `${oldState.channel}\n🆔 \`${oldState.channel.id}\``
+        },
+        {
+          name: '⏱️ Tiempo en voice',
+          value: timeText
+        },
+        {
+          name: '📊 Estado',
+          value: isAFK ? '😴 AFK / Salió rápido' : '🟢 Activo'
+        },
+        {
+          name: '🧑‍💼 Acción por',
+          value: movedByMod ? mover : 'Usuario (auto)'
+        }
+      );
+
+    }
+
+    // =========================
+    // 🔁 MOVE
+    // =========================
+    else if (oldState.channel && newState.channel && oldState.channel.id !== newState.channel.id) {
+
+      let mover = 'Usuario';
+      let movedByMod = false;
+
+      try {
+        await new Promise(res => setTimeout(res, 800));
+
+        const logs = await guild.fetchAuditLogs({
+          limit: 5,
+          type: AuditLogEvent.MemberMove
+        });
+
+        const entry = logs.entries.find(e =>
+          e.target?.id === userId &&
+          Date.now() - e.createdTimestamp < 5000
+        );
+
+        if (entry) {
+          mover = `${entry.executor.tag} (${entry.executor.id})`;
+          movedByMod = true;
+        }
+
+      } catch {}
+
+      action = '🔁 Cambio de canal';
       color = '#ffaa00';
 
-      description =
-        `📂 Canal anterior:\n${oldState.channel}\n\n` +
-        `📂 Canal nuevo:\n${newState.channel}\n\n` +
-        `🧑‍💼 Movido por:\n${mover}`;
+      fields.push(
+        {
+          name: '📤 Canal anterior',
+          value: `${oldState.channel}\n🆔 \`${oldState.channel.id}\``,
+          inline: true
+        },
+        {
+          name: '📥 Canal nuevo',
+          value: `${newState.channel}\n🆔 \`${newState.channel.id}\``,
+          inline: true
+        },
+        {
+          name: '🧑‍💼 Movido por',
+          value: movedByMod ? mover : 'Usuario',
+          inline: false
+        }
+      );
+
     }
 
-    // 🔇 SERVER MUTE
+    // =========================
+    // 🔇 MUTE
+    // =========================
     else if (oldState.serverMute !== newState.serverMute) {
 
-      title = newState.serverMute
-        ? '🔇 Server Muted'
-        : '🔊 Server Unmuted';
-
+      action = newState.serverMute ? '🔇 Usuario muteado' : '🔊 Usuario desmuteado';
       color = '#ff8800';
 
-      description = newState.serverMute
-        ? 'Un moderador silenció al usuario.'
-        : 'El usuario fue desmuteado por un moderador.';
+      fields.push({
+        name: '📊 Estado',
+        value: newState.serverMute
+          ? 'Silenciado por moderador'
+          : 'Ya puede hablar'
+      });
+
     }
 
-    // 🔕 SERVER DEAF
+    // =========================
+    // 🔕 DEAF
+    // =========================
     else if (oldState.serverDeaf !== newState.serverDeaf) {
 
-      title = newState.serverDeaf
-        ? '🔕 Server Deafened'
-        : '🔊 Server Undeafened';
+      action = newState.serverDeaf ? '🔕 Usuario ensordecido' : '🔊 Usuario escuchando';
+      color = '#aa00ff';
 
-      color = '#bb55ff';
+      fields.push({
+        name: '📊 Estado',
+        value: newState.serverDeaf
+          ? 'No puede escuchar'
+          : 'Puede escuchar nuevamente'
+      });
 
-      description = newState.serverDeaf
-        ? 'Un moderador ensordeció al usuario.'
-        : 'El usuario ya puede escuchar.';
     }
 
-    // 🎤 SELF MUTE
-    else if (oldState.selfMute !== newState.selfMute) {
+    if (!action) return;
 
-      title = newState.selfMute
-        ? '🎤 Usuario se muteó'
-        : '🎤 Usuario se desmuteó';
-
-      color = '#00c3ff';
-
-      description = newState.selfMute
-        ? 'El usuario se silenció.'
-        : 'El usuario volvió a hablar.';
-    }
-
-    // 🎧 SELF DEAF
-    else if (oldState.selfDeaf !== newState.selfDeaf) {
-
-      title = newState.selfDeaf
-        ? '🎧 Usuario se ensordeció'
-        : '🎧 Usuario activó audio';
-
-      color = '#9d4edd';
-
-      description = newState.selfDeaf
-        ? 'El usuario se quitó el audio.'
-        : 'El usuario volvió a escuchar.';
-    }
-
-    // 📺 STREAM
-    else if (oldState.streaming !== newState.streaming) {
-
-      title = newState.streaming
-        ? '📺 Stream iniciado'
-        : '📺 Stream finalizado';
-
-      color = '#ff0055';
-
-      description = newState.streaming
-        ? 'El usuario comenzó a transmitir.'
-        : 'El usuario dejó de transmitir.';
-    }
-
-    // 📷 CAMERA
-    else if (oldState.selfVideo !== newState.selfVideo) {
-
-      title = newState.selfVideo
-        ? '📷 Cámara activada'
-        : '📷 Cámara desactivada';
-
-      color = '#00ffaa';
-
-      description = newState.selfVideo
-        ? 'El usuario encendió su cámara.'
-        : 'El usuario apagó su cámara.';
-    }
-
-    if (!title) return;
-
+    // =========================
+    // 📦 EMBED FINAL
+    // =========================
     const embed = createLogEmbed({
-      title,
+      title: action,
       color,
       user: member.user,
       fields: [
         {
           name: '👤 Usuario',
-          value: `${member.user}\n🆔 \`${member.id}\``,
-          inline: true
+          value: `${member.user}\n🆔 \`${member.id}\``
         },
-        {
-          name: '🎙️ Estado Voice',
-          value: description,
-          inline: false
-        }
+        ...fields
       ],
       footer: `Servidor: ${guild.name}`
     });
 
     await logChannel.send({ embeds: [embed] });
+
   }
 };
