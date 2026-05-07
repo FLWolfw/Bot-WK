@@ -20,29 +20,25 @@ export default {
 
     // 🔥 CATEGORY (con fetch)
     if (config.logs?.categories?.message) {
-
       logChannel =
         message.guild.channels.cache.get(config.logs.categories.message)
         || await message.guild.channels
           .fetch(config.logs.categories.message)
           .catch(() => null);
-
     }
 
-    // 🔥 FALLBACK (con fetch)
+    // 🔥 FALLBACK
     if (!logChannel && config.logs?.channel) {
-
       logChannel =
         message.guild.channels.cache.get(config.logs.channel)
         || await message.guild.channels
           .fetch(config.logs.channel)
           .catch(() => null);
-
     }
 
     if (!logChannel) return;
 
-    // 🔥 AUDIT LOG (quién borró)
+    // 🔥 AUDIT LOG
     let deleter = 'Desconocido';
 
     try {
@@ -58,8 +54,13 @@ export default {
       }
 
     } catch (err) {
-      console.log('⚠️ No se pudo obtener audit logs');
+      console.log('⚠️ Audit logs no disponibles');
     }
+
+    // 🔥 CONTENIDO SEGURO
+    const content = message.content
+      ? `\`\`\`\n${message.content.slice(0, 1000)}\n\`\`\``
+      : 'Sin contenido';
 
     const embed = createLogEmbed({
       title: '🗑️ Message Deleted',
@@ -68,25 +69,31 @@ export default {
       fields: [
         {
           name: '👤 Usuario',
-          value: `${message.author}\nID: \`${message.author.id}\``
+          value: `${message.author}\n🆔 \`${message.author.id}\``,
+          inline: true
         },
         {
           name: '💬 Canal',
-          value: `<#${message.channel.id}>\nID: \`${message.channel.id}\``
+          value: `<#${message.channel.id}>\n🆔 \`${message.channel.id}\``,
+          inline: true
         },
         {
           name: '🧹 Eliminado por',
-          value: deleter
+          value: deleter,
+          inline: false
         },
         {
           name: '📄 Contenido',
-          value: message.content || 'Sin contenido'
+          value: content,
+          inline: false
         },
         {
           name: '🆔 Message ID',
-          value: `\`${message.id}\``
+          value: `\`${message.id}\``,
+          inline: false
         }
-      ]
+      ],
+      footer: `Servidor: ${message.guild.name}`
     });
 
     await logChannel.send({ embeds: [embed] });
