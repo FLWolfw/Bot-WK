@@ -1,77 +1,117 @@
-import { Events } from 'discord.js';
+import { Events, AuditLogEvent } from 'discord.js';
 import { getGuildConfig } from '../../services/guildConfigService.js';
+import { createLogEmbed } from '../../utils/logEmbed.js';
 
 export default {
   name: Events.GuildMemberUpdate,
-  async execute(oldMember, newMember) {
 
-    const guild = newMember.guild;
+  async execute(oldMember, newMember, client) {
+
+    if (!oldMember.guild) return;
 
     const config = await getGuildConfig(
-      newMember.client.db,
-      guild.id
+      client.db,
+      oldMember.guild.id
     );
 
     if (!config.logs?.enabled) return;
 
     let logChannel = null;
 
-    // 🔥 CATEGORY (con fetch)
+    // 🔥 CATEGORY
     if (config.logs?.categories?.role) {
-
       logChannel =
-        guild.channels.cache.get(
-          config.logs.categories.role
-        )
-        || await guild.channels
+        oldMember.guild.channels.cache.get(config.logs.categories.role)
+        || await oldMember.guild.channels
           .fetch(config.logs.categories.role)
           .catch(() => null);
-
     }
 
     // 🔥 FALLBACK
     if (!logChannel && config.logs?.channel) {
-
       logChannel =
-        guild.channels.cache.get(
-          config.logs.channel
-        )
-        || await guild.channels
+        oldMember.guild.channels.cache.get(config.logs.channel)
+        || await oldMember.guild.channels
           .fetch(config.logs.channel)
           .catch(() => null);
-
     }
 
     if (!logChannel) return;
 
-    const added = newMember.roles.cache.filter(
-      r => !oldMember.roles.cache.has(r.id)
+    // 🔥 DETECTAR CAMBIOS
+    const addedRoles = newMember.roles.cache.filter(
+      role => !oldMember.roles.cache.has(role.id)
     );
 
-    const removed = oldMember.roles.cache.filter(
-      r => !newMember.roles.cache.has(r.id)
+    const removedRoles = oldMember.roles.cache.filter(
+      role => !newMember.roles.cache.has(role.id)
     );
 
-    // 🔥 SI NO HAY CAMBIOS → SALIR
-    if (!added.size && !removed.size) return;
+    if (!addedRoles.size && !removedRoles.size) return;
 
-    // ➕ ROLES AÑADIDOS
-    for (const role of added.values()) {
+    // 🔥 ESPERAR AUDIT LOG
+    let executor = 'Desconocido';
 
-      await logChannel.send(
-        `➕ ${newMember.user.tag} recibió el rol ${role.name}`
+    try {
+      await new Promise(res => setTimeout(res, 500));
+
+      const fetchedLogs = await oldMember.guild.fetchAuditLogs({
+        limit: 5,
+        type: AuditLogEvent.MemberRoleUpdate
+      });
+
+      const log = fetchedLogs.entries.find(entry =>
+        entry.target?.id === newMember.id &&
+        Date.now() - entry.createdTimestamp < 5000
       );
 
+      if (log) {
+        executor = `${log.executor.tag} (${log.executor.id})`;
+      }
+
+    } catch (err) {
+      console.log('⚠️ Audit logs roles no disponibles');
     }
 
-    // ➖ ROLES REMOVIDOS
-    for (const role of removed.values()) {
+    // 🔥 FORMATO
+    const added = addedRoles.map(r => `<@&${r.id}>`).join('\n') || 'Ninguno';
+    const removed = removedRoles.map(r => `<@&${r.id}>`).join('\n') || 'Ninguno';
 
-      await logChannel.send(
-        `➖ ${newMember.user.tag} perdió el rol ${role.name}`
-      );
+    const executorText =
+      executor === 'Desconocido'
+        ? 'No se pudo determinar'
+        : executor;
 
-    }
+    const embed = createLogEmbed({
+      title: '🎭 Roles Updated',
+      color: '#00c3ff',
+      user: newMember.user,
+      fields: [
+        {
+          name: '👤 Usuario',
+          value: `${newMember.user}\n🆔 \`${newMember.id}\``,
+          inline: false
+        },
+        {
+          name: '🧑‍💼 Cambiado por',
+          value: executorText,
+          inline: false
+        },
+        {
+          name: '➕ Roles añadidos',
+          value: added,
+          inline: true
+        },
+        {
+          name: '➖ Roles removidos',
+          value: removed,
+          inline: true
+        }
+      ],
+      footer: `Servidor: ${newMember.guild.name}`
+    });
+
+    await logChannel.send({ embeds: [embed] });
 
   }
 };

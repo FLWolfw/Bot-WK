@@ -7,9 +7,10 @@ export default {
 
   async execute(oldMessage, newMessage, client) {
 
-    // ❌ ignorar cosas inútiles
+    // ❌ ignorar basura
     if (!oldMessage.guild) return;
     if (oldMessage.author?.bot) return;
+    if (!oldMessage.content || !newMessage.content) return;
     if (oldMessage.content === newMessage.content) return;
 
     const config = await getGuildConfig(
@@ -41,19 +42,27 @@ export default {
 
     if (!logChannel) return;
 
-    // 🔥 CONTENIDO ANTES / DESPUÉS
-    const before = oldMessage.content
-      ? oldMessage.content.slice(0, 1000)
-      : 'Sin contenido';
+    // 🔥 CONTENIDO LIMPIO
+    const before = oldMessage.content.slice(0, 1000);
+    const after = newMessage.content.slice(0, 1000);
 
-    const after = newMessage.content
-      ? newMessage.content.slice(0, 1000)
-      : 'Sin contenido';
+    // 🔥 DIFF INTELIGENTE
+    let diff;
 
-    // 🔥 FORMATO PRO (diff estilo Git)
-    const diff = `\`\`\`diff\n- ${before}\n+ ${after}\n\`\`\``;
+    if (after.startsWith(before)) {
+      const added = after.slice(before.length);
+      diff = `\`\`\`diff\n+ ${added}\n\`\`\``;
+    } else {
+      diff = `\`\`\`diff
+- Antes:
+${before}
 
-    // 🔥 LINK AL MENSAJE
++ Después:
+${after}
+\`\`\``;
+    }
+
+    // 🔗 LINK
     const messageLink = `https://discord.com/channels/${oldMessage.guild.id}/${oldMessage.channel.id}/${oldMessage.id}`;
 
     const embed = createLogEmbed({
@@ -73,7 +82,7 @@ export default {
         },
         {
           name: '🔗 Ir al mensaje',
-          value: `[Click aquí](${messageLink})`,
+          value: `[Ir al mensaje](${messageLink})`,
           inline: false
         },
         {
