@@ -18,7 +18,7 @@ export default {
 
     let logChannel = null;
 
-    // 🔥 CATEGORY (con fetch)
+    // 🔥 CATEGORY
     if (config.logs?.categories?.message) {
       logChannel =
         message.guild.channels.cache.get(config.logs.categories.message)
@@ -57,14 +57,26 @@ export default {
       console.log('⚠️ Audit logs no disponibles');
     }
 
-    // 🔥 CONTENIDO SEGURO
+    // 🔥 CONTENIDO PRO (diff)
     const content = message.content
-      ? `\`\`\`\n${message.content.slice(0, 1000)}\n\`\`\``
+      ? `\`\`\`diff\n- ${message.content.slice(0, 1000)}\n\`\`\``
       : 'Sin contenido';
+
+    // 🔥 TEXTO MEJORADO
+    const deleterText =
+      deleter === 'Desconocido'
+        ? 'Usuario (auto-eliminado)'
+        : deleter;
+
+    // 🔥 COLOR DINÁMICO
+    const color =
+      deleter === 'Desconocido'
+        ? '#ff3b3b' // rojo
+        : '#ff8800'; // naranja mod
 
     const embed = createLogEmbed({
       title: '🗑️ Message Deleted',
-      color: '#ff3b3b',
+      color,
       user: message.author,
       fields: [
         {
@@ -79,7 +91,7 @@ export default {
         },
         {
           name: '🧹 Eliminado por',
-          value: deleter,
+          value: deleterText,
           inline: false
         },
         {
