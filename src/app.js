@@ -14,6 +14,7 @@ import { loadCommands, registerCommands as registerSlashCommands } from './handl
 
 import { setupDashboard } from './dashboard/index.js';
 import loadEvents from './handlers/events.js';
+import { initMusic } from './services/musicService.js';
 
 class TitanBot extends Client {
   constructor() {
@@ -63,6 +64,13 @@ class TitanBot extends Client {
 
       startupLog('Logging into Discord...');
       await this.login(this.config.bot.token);
+
+      startupLog('Initializing music player...');
+      try {
+        await initMusic(this);
+      } catch (err) {
+        logger.error('Music player init failed — /music will be unavailable', { error: err?.message });
+      }
 
       startupLog('Registering slash commands...');
       // A command-registration failure (e.g. Discord's 100-command cap,
