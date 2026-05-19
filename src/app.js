@@ -7,15 +7,12 @@ import cron from 'node-cron';
 import config from './config/application.js';
 import { initializeDatabase } from './utils/database.js';
 import { getServerCounters, updateCounter } from './services/serverstatsService.js';
-import { logger, startupLog } from './utils/logger.js';
+import { logger, startupLog, shutdownLog, printStartupBanner } from './utils/logger.js';
 import { checkBirthdays } from './services/birthdayService.js';
 import { checkGiveaways } from './services/giveawayService.js';
 import { loadCommands, registerCommands as registerSlashCommands } from './handlers/commandLoader.js';
 
-// 🔥 DASHBOARD
 import { setupDashboard } from './dashboard/index.js';
-
-// 🔥 LOADER ÚNICO DE EVENTOS
 import loadEvents from './handlers/events.js';
 
 class TitanBot extends Client {
@@ -30,7 +27,7 @@ class TitanBot extends Client {
         GatewayIntentBits.GuildVoiceStates,
         GatewayIntentBits.GuildBans,
       ],
-      partials: ['USER']
+      partials: ['USER'],
     });
 
     this.config = config;
@@ -46,23 +43,18 @@ class TitanBot extends Client {
 
   async start() {
     try {
-      startupLog('Starting TitanBot...');
-
       startupLog('Initializing database...');
       const dbInstance = await initializeDatabase();
       this.db = dbInstance.db;
-
       const dbStatus = this.db.getStatus();
-      startupLog(`Database Status: ${dbStatus.connectionType}`);
+      startupLog(`Database ready — ${dbStatus.connectionType}`);
 
-      // 🔥 WEB SERVER
       this.startWebServer();
 
       startupLog('Loading commands...');
       await loadCommands(this);
 
-      // 🔥 SOLO UN LOADER (SIN DUPLICADOS)
-      console.log('🔥 Cargando eventos...');
+      startupLog('Loading events...');
       await loadEvents(this);
 
       startupLog('Logging into Discord...');
@@ -71,12 +63,17 @@ class TitanBot extends Client {
       startupLog('Registering slash commands...');
       await this.registerCommands();
 
-      startupLog(`ONLINE ✅ | ${this.commands.size} commands loaded`);
+      // Banner final con resumen del estado
+      printStartupBanner(
+        this.user?.tag ?? 'Unknown',
+        this.commands.size,
+        dbStatus.connectionType,
+      );
 
       this.setupCronJobs();
 
     } catch (error) {
-      logger.error('Failed to start bot:', error);
+      logger.error('Fatal error during startup — bot will exit', { error });
       process.exit(1);
     }
   }
@@ -86,45 +83,37 @@ class TitanBot extends Client {
 
     setupDashboard(app, this);
 
-    app.get('/', (req, res) => {
-      res.json({ message: 'TitanBot Online' });
-    });
+    app.get('/', (req, res) => res.json({ status: 'online', bot: 'TitanBot' }));
 
-    app.use((req, res) => {
-      res.status(404).send(`Ruta no encontrada: ${req.url}`);
-    });
+    app.use((req, res) => res.status(404).json({ error: `Route not found: ${req.url}` }));
 
     const PORT = process.env.PORT || 3000;
 
     app.listen(PORT, '0.0.0.0', () => {
-      console.log(`🚀 Web activa en puerto ${PORT}`);
+      startupLog(`Web server listening on port ${PORT}`);
     });
   }
 
   setupCronJobs() {
-    cron.schedule('0 6 * * *', () => checkBirthdays(this));
-    cron.schedule('* * * * *', () => checkGiveaways(this));
-
+    cron.schedule('0 6 * * *',    () => checkBirthdays(this));
+    cron.schedule('* * * * *',    () => checkGiveaways(this));
     cron.schedule('*/15 * * * *', async () => {
       try {
         await this.updateAllCounters();
       } catch (err) {
-        logger.error('Error en cron counters:', err);
+        logger.error('Cron error — updateAllCounters failed', { error: err });
       }
     });
+
+    logger.debug('Cron jobs scheduled (birthdays, giveaways, counters)');
   }
 
   async updateAllCounters() {
-    try {
-      for (const guild of this.guilds.cache.values()) {
-        const counters = await getServerCounters(this, guild.id);
-
-        for (const counter of counters) {
-          await updateCounter(this, guild, counter);
-        }
+    for (const guild of this.guilds.cache.values()) {
+      const counters = await getServerCounters(this, guild.id);
+      for (const counter of counters) {
+        await updateCounter(this, guild, counter);
       }
-    } catch (error) {
-      logger.error('Error updating counters:', error);
     }
   }
 
@@ -132,6 +121,17 @@ class TitanBot extends Client {
     await registerSlashCommands(this, this.config.bot.guildId);
   }
 }
+
+// Capturar señales de cierre limpiamente
+process.on('SIGTERM', () => {
+  shutdownLog('Received SIGTERM — shutting down gracefully');
+  process.exit(0);
+});
+
+process.on('SIGINT', () => {
+  shutdownLog('Received SIGINT — shutting down gracefully');
+  process.exit(0);
+});
 
 const bot = new TitanBot();
 bot.start();
