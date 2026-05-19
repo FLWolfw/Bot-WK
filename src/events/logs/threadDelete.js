@@ -15,7 +15,7 @@ export default {
     const config = await getGuildConfig(client.db, guild.id);
     if (!isEventEnabled(config, 'thread.delete')) return;
 
-    const logChannel = await resolveLogChannel(guild, config, 'channel');
+    const logChannel = await resolveLogChannel(guild, config, 'thread');
     if (!logChannel) return;
 
     const executor = await fetchExecutor(guild, AuditLogEvent.ThreadDelete, {

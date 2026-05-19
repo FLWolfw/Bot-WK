@@ -15,7 +15,7 @@ export default {
     const config = await getGuildConfig(client.db, guild.id);
     if (!isEventEnabled(config, 'emoji.delete')) return;
 
-    const logChannel = await resolveLogChannel(guild, config, null);
+    const logChannel = await resolveLogChannel(guild, config, 'emoji');
     if (!logChannel) return;
 
     const executor = await fetchExecutor(guild, AuditLogEvent.EmojiDelete, {

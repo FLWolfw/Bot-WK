@@ -34,7 +34,7 @@ export default {
 
     if (changes.length === 0) return;
 
-    const logChannel = await resolveLogChannel(guild, config, 'channel');
+    const logChannel = await resolveLogChannel(guild, config, 'thread');
     if (!logChannel) return;
 
     const executor = await fetchExecutor(guild, AuditLogEvent.ThreadUpdate, {

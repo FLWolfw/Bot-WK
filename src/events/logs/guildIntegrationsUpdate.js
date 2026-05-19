@@ -13,7 +13,7 @@ export default {
     const config = await getGuildConfig(client.db, guild.id);
     if (!isEventEnabled(config, 'integration.update')) return;
 
-    const logChannel = await resolveLogChannel(guild, config, null);
+    const logChannel = await resolveLogChannel(guild, config, 'integration');
     if (!logChannel) return;
 
     const embed = createLogEmbed({

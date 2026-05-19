@@ -42,7 +42,7 @@ export default {
 
     if (changes.length === 0) return;
 
-    const logChannel = await resolveLogChannel(newGuild, config, null);
+    const logChannel = await resolveLogChannel(newGuild, config, 'server');
     if (!logChannel) return;
 
     const executor = await fetchExecutor(newGuild, AuditLogEvent.GuildUpdate, {});

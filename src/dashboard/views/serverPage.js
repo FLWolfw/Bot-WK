@@ -22,7 +22,7 @@ const LOG_CATEGORIES = [
   ['giveaway', '🎁 Sorteos'],
 ];
 
-function channelOptions(guild, selectedId) {
+function channelOptions(guild, selectedId, emptyLabel = '— Ninguno —') {
   const opts = guild.channels.cache
     .filter((c) => c.type === 0)
     .map(
@@ -30,7 +30,7 @@ function channelOptions(guild, selectedId) {
         `<option value="${esc(c.id)}" ${c.id === selectedId ? 'selected' : ''}>#${esc(c.name)}</option>`,
     )
     .join('');
-  return `<option value="">— Ninguno —</option>${opts}`;
+  return `<option value="">${esc(emptyLabel)}</option>${opts}`;
 }
 
 function badge(on) {
@@ -46,6 +46,8 @@ export function renderServer({ user, guild, config, csrf, flash }) {
   const logsOn = Boolean(config.logs?.enabled);
   const enabledEvents = config.logs?.enabledEvents || {};
 
+  const catChannels = config.logs?.categories || {};
+
   const pills = LOG_CATEGORIES.map(([key, label]) => {
     const on = logsOn && enabledEvents[`${key}.*`] !== false;
     return `<div class="pill ${on ? 'on' : 'off'}">
@@ -57,6 +59,11 @@ export function renderServer({ user, guild, config, csrf, flash }) {
       </form>
     </div>`;
   }).join('');
+
+  const routingRows = LOG_CATEGORIES.map(
+    ([key, label]) => `<label class="field">${esc(label)}</label>
+      <select name="ch_${esc(key)}">${channelOptions(guild, catChannels[key], '↪ Usar canal general')}</select>`,
+  ).join('');
 
   const welcomeOn = Boolean(config.welcome?.enabled);
 
@@ -122,10 +129,23 @@ export function renderServer({ user, guild, config, csrf, flash }) {
         </form>
       </div>
 
+      <p class="hint" style="margin-top:10px">El <b>canal de registros</b> de arriba es el general: por defecto todo llega ahí. Abajo puedes mandar categorías concretas a su propio canal.</p>
+
       <div class="divider"></div>
-      <label class="field">Categorías ${logsOn ? '' : '· (activa los registros primero)'}</label>
+      <label class="field">Encender / silenciar categorías ${logsOn ? '' : '· (activa los registros primero)'}</label>
       <div class="pill-grid">${pills}</div>
-      <p class="hint" style="margin-top:14px">Verde = se registra · Rojo = silenciado. Cambios al instante.</p>
+      <p class="hint" style="margin-top:10px">Verde = se registra · Rojo = silenciado. Cambio al instante.</p>
+
+      <div class="divider"></div>
+      <form method="POST" action="/api/server/${esc(id)}/logs/category-channels">
+        ${f}
+        <label class="field">Canal por categoría · deja "↪ Usar canal general" para que use el canal de arriba</label>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 18px;align-items:center">
+          ${routingRows}
+        </div>
+        <div class="divider"></div>
+        <button class="btn-block">Guardar canales por categoría</button>
+      </form>
     </div>
 
   </div>`;

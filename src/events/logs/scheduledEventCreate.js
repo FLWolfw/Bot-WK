@@ -14,7 +14,7 @@ export default {
     const config = await getGuildConfig(client.db, guild.id);
     if (!isEventEnabled(config, 'event.create')) return;
 
-    const logChannel = await resolveLogChannel(guild, config, null);
+    const logChannel = await resolveLogChannel(guild, config, 'event');
     if (!logChannel) return;
 
     const embed = createLogEmbed({

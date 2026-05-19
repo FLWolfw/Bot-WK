@@ -7,6 +7,7 @@ import {
   updateWelcomeChannel,
   updateWelcomeMessage,
   updateLogChannel,
+  updateLogCategory,
 } from '../../services/guildConfigService.js';
 import {
   setLoggingEnabled,
@@ -110,6 +111,26 @@ export function apiRoutes(client) {
     } catch (e) {
       logger.error('dash logs category', { error: e?.message });
       flashBack(req, res, 'err', 'No se pudo cambiar la categoría.');
+    }
+  });
+
+  router.post('/server/:id/logs/category-channels', async (req, res) => {
+    try {
+      let changed = 0;
+      for (const cat of KNOWN_CATEGORIES) {
+        const raw = req.body[`ch_${cat}`];
+        if (raw === undefined) continue;
+        const ch = resolveChannel(req.guild, raw);
+        if (!ch.ok) {
+          return flashBack(req, res, 'err', `Canal inválido para la categoría "${cat}".`);
+        }
+        await updateLogCategory(client.db, req.guild.id, cat, ch.id);
+        changed += 1;
+      }
+      flashBack(req, res, 'ok', `Enrutamiento guardado (${changed} categorías).`);
+    } catch (e) {
+      logger.error('dash logs category-channels', { error: e?.message });
+      flashBack(req, res, 'err', 'No se pudo guardar el enrutamiento por categoría.');
     }
   });
 

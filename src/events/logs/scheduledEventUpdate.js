@@ -37,7 +37,7 @@ export default {
 
     if (changes.length === 0) return;
 
-    const logChannel = await resolveLogChannel(guild, config, null);
+    const logChannel = await resolveLogChannel(guild, config, 'event');
     if (!logChannel) return;
 
     const embed = createLogEmbed({
