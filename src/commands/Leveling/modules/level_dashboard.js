@@ -20,75 +20,76 @@ import { logger } from '../../../utils/logger.js';
 import { TitanBotError, ErrorTypes } from '../../../utils/errorHandler.js';
 import { getLevelingConfig, saveLevelingConfig } from '../../../services/leveling.js';
 import { botHasPermission } from '../../../utils/permissionGuard.js';
+import { t, pickLanguage } from '../../../services/i18n.js';
 
 // ─── Embed & Menu Builders ────────────────────────────────────────────────────
 
-function buildDashboardEmbed(cfg, guild) {
-    const channel = cfg.levelUpChannel ? `<#${cfg.levelUpChannel}>` : '`Not set`';
+function buildDashboardEmbed(lang, cfg, guild) {
+    const channel = cfg.levelUpChannel ? `<#${cfg.levelUpChannel}>` : `\`${t(lang, 'wolf.cmd.leveling.admin.dashboard.notSet')}\``;
     const xpMin = cfg.xpRange?.min ?? cfg.xpPerMessage?.min ?? 15;
     const xpMax = cfg.xpRange?.max ?? cfg.xpPerMessage?.max ?? 25;
     const cooldown = cfg.xpCooldown ?? 60;
-    const rawMsg = cfg.levelUpMessage || '{user} has leveled up to level {level}!';
+    const rawMsg = cfg.levelUpMessage || t(lang, 'wolf.cmd.leveling.admin.dashboard.defaultMsg');
     const msgPreview = `\`${rawMsg.length > 60 ? rawMsg.substring(0, 60) + '…' : rawMsg}\``;
 
     return new EmbedBuilder()
-        .setTitle('📊 Leveling System Dashboard')
-        .setDescription(`Manage leveling settings for **${guild.name}**.\nSelect an option below to modify a setting.`)
+        .setTitle(t(lang, 'wolf.cmd.leveling.admin.dashboard.title'))
+        .setDescription(t(lang, 'wolf.cmd.leveling.admin.dashboard.description', { guild: guild.name }))
         .setColor(getColor('info'))
         .addFields(
-            { name: '📢 Level-up Channel', value: channel, inline: true },
-            { name: '⚙️ System Status', value: cfg.enabled ? '✅ **Enabled**' : '❌ **Disabled**', inline: true },
-            { name: '📣 Announcements', value: cfg.announceLevelUp !== false ? '✅ **Enabled**' : '❌ **Disabled**', inline: true },
-            { name: '🎲 XP per Message', value: `\`${xpMin} – ${xpMax}\``, inline: true },
-            { name: '⏱️ XP Cooldown', value: `\`${cooldown}s\``, inline: true },
+            { name: t(lang, 'wolf.cmd.leveling.admin.dashboard.fieldChannel'), value: channel, inline: true },
+            { name: t(lang, 'wolf.cmd.leveling.admin.dashboard.fieldStatus'), value: cfg.enabled ? t(lang, 'wolf.cmd.leveling.admin.dashboard.enabled') : t(lang, 'wolf.cmd.leveling.admin.dashboard.disabled'), inline: true },
+            { name: t(lang, 'wolf.cmd.leveling.admin.dashboard.fieldAnnouncements'), value: cfg.announceLevelUp !== false ? t(lang, 'wolf.cmd.leveling.admin.dashboard.enabled') : t(lang, 'wolf.cmd.leveling.admin.dashboard.disabled'), inline: true },
+            { name: t(lang, 'wolf.cmd.leveling.admin.dashboard.fieldXpRange'), value: `\`${xpMin} – ${xpMax}\``, inline: true },
+            { name: t(lang, 'wolf.cmd.leveling.admin.dashboard.fieldCooldown'), value: `\`${cooldown}s\``, inline: true },
             { name: '\u200B', value: '\u200B', inline: true },
-            { name: '💬 Level-up Message', value: msgPreview, inline: false },
+            { name: t(lang, 'wolf.cmd.leveling.admin.dashboard.fieldMessage'), value: msgPreview, inline: false },
         )
-        .setFooter({ text: 'Dashboard closes after 10 minutes of inactivity' })
+        .setFooter({ text: t(lang, 'wolf.cmd.leveling.admin.dashboard.footer') })
         .setTimestamp();
 }
 
-function buildSelectMenu(guildId) {
+function buildSelectMenu(lang, guildId) {
     return new StringSelectMenuBuilder()
         .setCustomId(`level_cfg_${guildId}`)
-        .setPlaceholder('Select a setting to configure...')
+        .setPlaceholder(t(lang, 'wolf.cmd.leveling.admin.dashboard.placeholder'))
         .addOptions(
             new StringSelectMenuOptionBuilder()
-                .setLabel('Change Level-up Channel')
-                .setDescription('Set the channel where level-up notifications are sent')
+                .setLabel(t(lang, 'wolf.cmd.leveling.admin.dashboard.optChannelLabel'))
+                .setDescription(t(lang, 'wolf.cmd.leveling.admin.dashboard.optChannelDesc'))
                 .setValue('channel')
                 .setEmoji('📢'),
             new StringSelectMenuOptionBuilder()
-                .setLabel('Edit Level-up Message')
-                .setDescription('Customise the message shown when a user levels up')
+                .setLabel(t(lang, 'wolf.cmd.leveling.admin.dashboard.optMessageLabel'))
+                .setDescription(t(lang, 'wolf.cmd.leveling.admin.dashboard.optMessageDesc'))
                 .setValue('message')
                 .setEmoji('💬'),
             new StringSelectMenuOptionBuilder()
-                .setLabel('Set XP Range')
-                .setDescription('Set the minimum and maximum XP rewarded per message')
+                .setLabel(t(lang, 'wolf.cmd.leveling.admin.dashboard.optXpRangeLabel'))
+                .setDescription(t(lang, 'wolf.cmd.leveling.admin.dashboard.optXpRangeDesc'))
                 .setValue('xp_range')
                 .setEmoji('🎲'),
             new StringSelectMenuOptionBuilder()
-                .setLabel('Set XP Cooldown')
-                .setDescription('Seconds between XP grants for the same user')
+                .setLabel(t(lang, 'wolf.cmd.leveling.admin.dashboard.optCooldownLabel'))
+                .setDescription(t(lang, 'wolf.cmd.leveling.admin.dashboard.optCooldownDesc'))
                 .setValue('xp_cooldown')
                 .setEmoji('⏱️'),
         );
 }
 
-function buildButtonRow(cfg, guildId, disabled = false) {
+function buildButtonRow(lang, cfg, guildId, disabled = false) {
     const announceOn = cfg.announceLevelUp !== false;
     const systemOn = cfg.enabled !== false;
     return new ActionRowBuilder().addComponents(
         new ButtonBuilder()
             .setCustomId(`level_cfg_toggle_announce_${guildId}`)
-            .setLabel('Announcements')
+            .setLabel(t(lang, 'wolf.cmd.leveling.admin.dashboard.btnAnnouncements'))
             .setStyle(announceOn ? ButtonStyle.Success : ButtonStyle.Danger)
             .setEmoji('📣')
             .setDisabled(disabled),
         new ButtonBuilder()
             .setCustomId(`level_cfg_toggle_system_${guildId}`)
-            .setLabel('Leveling')
+            .setLabel(t(lang, 'wolf.cmd.leveling.admin.dashboard.btnLeveling'))
             .setStyle(systemOn ? ButtonStyle.Success : ButtonStyle.Danger)
             .setEmoji('⚡')
             .setDisabled(disabled),
@@ -97,12 +98,12 @@ function buildButtonRow(cfg, guildId, disabled = false) {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-async function refreshDashboard(rootInteraction, cfg, guildId) {
-    const selectMenu = buildSelectMenu(guildId);
+async function refreshDashboard(lang, rootInteraction, cfg, guildId) {
+    const selectMenu = buildSelectMenu(lang, guildId);
     await InteractionHelper.safeEditReply(rootInteraction, {
-        embeds: [buildDashboardEmbed(cfg, rootInteraction.guild)],
+        embeds: [buildDashboardEmbed(lang, cfg, rootInteraction.guild)],
         components: [
-            buildButtonRow(cfg, guildId),
+            buildButtonRow(lang, cfg, guildId),
             new ActionRowBuilder().addComponents(selectMenu),
         ],
     }).catch(() => {});
@@ -112,6 +113,7 @@ async function refreshDashboard(rootInteraction, cfg, guildId) {
 
 export default {
     async execute(interaction, config, client) {
+        const lang = pickLanguage(config, interaction.guild);
         try {
             const guildId = interaction.guild.id;
             const cfg = await getLevelingConfig(client, guildId);
@@ -120,16 +122,16 @@ export default {
                 throw new TitanBotError(
                     'Leveling system not configured',
                     ErrorTypes.CONFIGURATION,
-                    'The leveling system has not been set up yet. Run `/level setup` first to configure it.',
+                    t(lang, 'wolf.cmd.leveling.admin.dashboard.notConfiguredDesc'),
                 );
             }
 
-            const selectMenu = buildSelectMenu(guildId);
+            const selectMenu = buildSelectMenu(lang, guildId);
             const selectRow = new ActionRowBuilder().addComponents(selectMenu);
 
             await InteractionHelper.safeEditReply(interaction, {
-                embeds: [buildDashboardEmbed(cfg, interaction.guild)],
-                components: [buildButtonRow(cfg, guildId), selectRow],
+                embeds: [buildDashboardEmbed(lang, cfg, interaction.guild)],
+                components: [buildButtonRow(lang, cfg, guildId), selectRow],
             });
 
             const collector = interaction.channel.createMessageComponentCollector({
@@ -144,16 +146,16 @@ export default {
                 try {
                     switch (selectedOption) {
                         case 'channel':
-                            await handleChannel(selectInteraction, interaction, cfg, guildId, client);
+                            await handleChannel(lang, selectInteraction, interaction, cfg, guildId, client);
                             break;
                         case 'message':
-                            await handleMessage(selectInteraction, interaction, cfg, guildId, client);
+                            await handleMessage(lang, selectInteraction, interaction, cfg, guildId, client);
                             break;
                         case 'xp_range':
-                            await handleXpRange(selectInteraction, interaction, cfg, guildId, client);
+                            await handleXpRange(lang, selectInteraction, interaction, cfg, guildId, client);
                             break;
                         case 'xp_cooldown':
-                            await handleXpCooldown(selectInteraction, interaction, cfg, guildId, client);
+                            await handleXpCooldown(lang, selectInteraction, interaction, cfg, guildId, client);
                             break;
                     }
                 } catch (error) {
@@ -165,8 +167,8 @@ export default {
 
                     const errorMessage =
                         error instanceof TitanBotError
-                            ? error.userMessage || 'An error occurred while processing your selection.'
-                            : 'An unexpected error occurred while updating the configuration.';
+                            ? error.userMessage || t(lang, 'wolf.cmd.leveling.admin.dashboard.errProcessing')
+                            : t(lang, 'wolf.cmd.leveling.admin.dashboard.errUpdating');
 
                     if (!selectInteraction.replied && !selectInteraction.deferred) {
                         await selectInteraction.deferUpdate().catch(() => {});
@@ -174,7 +176,7 @@ export default {
 
                     await selectInteraction
                         .followUp({
-                            embeds: [errorEmbed('Configuration Error', errorMessage)],
+                            embeds: [errorEmbed(t(lang, 'wolf.cmd.leveling.admin.dashboard.errTitle'), errorMessage)],
                             flags: MessageFlags.Ephemeral,
                         })
                         .catch(() => {});
@@ -206,8 +208,10 @@ export default {
                     await btnInteraction.followUp({
                         embeds: [
                             successEmbed(
-                                '✅ Announcements Updated',
-                                `Level-up announcements are now **${cfg.announceLevelUp ? 'enabled' : 'disabled'}**.`,
+                                t(lang, 'wolf.cmd.leveling.admin.dashboard.announceUpdatedTitle'),
+                                cfg.announceLevelUp 
+                                    ? t(lang, 'wolf.cmd.leveling.admin.dashboard.announceUpdatedDescEnabled')
+                                    : t(lang, 'wolf.cmd.leveling.admin.dashboard.announceUpdatedDescDisabled')
                             ),
                         ],
                         flags: MessageFlags.Ephemeral,
@@ -219,23 +223,25 @@ export default {
                     await btnInteraction.followUp({
                         embeds: [
                             successEmbed(
-                                '✅ System Updated',
-                                `The leveling system is now **${cfg.enabled ? 'enabled' : 'disabled'}**.${!cfg.enabled ? '\nUsers will not earn XP until the system is re-enabled.' : ''}`,
+                                t(lang, 'wolf.cmd.leveling.admin.dashboard.systemUpdatedTitle'),
+                                cfg.enabled
+                                    ? t(lang, 'wolf.cmd.leveling.admin.dashboard.systemUpdatedDescEnabled')
+                                    : t(lang, 'wolf.cmd.leveling.admin.dashboard.systemUpdatedDescDisabled')
                             ),
                         ],
                         flags: MessageFlags.Ephemeral,
                     });
                 }
 
-                await refreshDashboard(interaction, cfg, guildId);
+                await refreshDashboard(lang, interaction, cfg, guildId);
             });
 
             collector.on('end', async (collected, reason) => {
                 if (reason === 'time') {
                     btnCollector.stop();
                     const timeoutEmbed = new EmbedBuilder()
-                        .setTitle('⏰ Dashboard Timed Out')
-                        .setDescription('This dashboard has been closed due to inactivity. Please run the command again to continue.')
+                        .setTitle(t(lang, 'wolf.cmd.leveling.admin.dashboard.timeoutTitle'))
+                        .setDescription(t(lang, 'wolf.cmd.leveling.admin.dashboard.timeoutDesc'))
                         .setColor(getColor('error'));
                     
                     await InteractionHelper.safeEditReply(interaction, {
@@ -248,8 +254,8 @@ export default {
             btnCollector.on('end', async (collected, reason) => {
                 if (reason === 'time') {
                     const timeoutEmbed = new EmbedBuilder()
-                        .setTitle('⏰ Dashboard Timed Out')
-                        .setDescription('This dashboard has been closed due to inactivity. Please run the command again to continue.')
+                        .setTitle(t(lang, 'wolf.cmd.leveling.admin.dashboard.timeoutTitle'))
+                        .setDescription(t(lang, 'wolf.cmd.leveling.admin.dashboard.timeoutDesc'))
                         .setColor(getColor('error'));
                     
                     await InteractionHelper.safeEditReply(interaction, {
@@ -264,7 +270,7 @@ export default {
             throw new TitanBotError(
                 `Level dashboard failed: ${error.message}`,
                 ErrorTypes.UNKNOWN,
-                'Failed to open the leveling dashboard.',
+                t(lang, 'wolf.cmd.leveling.admin.dashboard.notConfiguredTitle'),
             );
         }
     },
@@ -272,23 +278,25 @@ export default {
 
 // ─── Change Level-up Channel ──────────────────────────────────────────────────
 
-async function handleChannel(selectInteraction, rootInteraction, cfg, guildId, client) {
+async function handleChannel(lang, selectInteraction, rootInteraction, cfg, guildId, client) {
     await selectInteraction.deferUpdate();
 
     const channelSelect = new ChannelSelectMenuBuilder()
         .setCustomId('level_cfg_channel')
-        .setPlaceholder('Select a text channel...')
+        .setPlaceholder(t(lang, 'wolf.cmd.leveling.admin.dashboard.actionChanPlaceholder'))
         .addChannelTypes(ChannelType.GuildText)
         .setMaxValues(1);
 
     const row = new ActionRowBuilder().addComponents(channelSelect);
 
+    const currentChan = cfg.levelUpChannel ? `<#${cfg.levelUpChannel}>` : `\`${t(lang, 'wolf.cmd.leveling.admin.dashboard.notSet')}\``;
+
     await selectInteraction.followUp({
         embeds: [
             new EmbedBuilder()
-                .setTitle('📢 Change Level-up Channel')
+                .setTitle(t(lang, 'wolf.cmd.leveling.admin.dashboard.actionChanTitle'))
                 .setDescription(
-                    `**Current:** ${cfg.levelUpChannel ? `<#${cfg.levelUpChannel}>` : '`Not set`'}\n\nSelect the channel where level-up notifications will be sent.`,
+                    t(lang, 'wolf.cmd.leveling.admin.dashboard.actionChanDesc', { current: currentChan }),
                 )
                 .setColor(getColor('info')),
         ],
@@ -312,8 +320,8 @@ async function handleChannel(selectInteraction, rootInteraction, cfg, guildId, c
             await chanInteraction.followUp({
                 embeds: [
                     errorEmbed(
-                        'Missing Permissions',
-                        `I need **SendMessages** and **EmbedLinks** permissions in ${channel} to send level-up notifications.`,
+                        t(lang, 'wolf.cmd.leveling.admin.missingPermsTitle'),
+                        t(lang, 'wolf.cmd.leveling.admin.botMissingPermsDesc', { channel: channel.toString() }),
                     ),
                 ],
                 flags: MessageFlags.Ephemeral,
@@ -327,14 +335,14 @@ async function handleChannel(selectInteraction, rootInteraction, cfg, guildId, c
         await chanInteraction.followUp({
             embeds: [
                 successEmbed(
-                    '✅ Channel Updated',
-                    `Level-up notifications will now be sent in ${channel}.`,
+                    t(lang, 'wolf.cmd.leveling.admin.dashboard.actionChanSuccessTitle'),
+                    t(lang, 'wolf.cmd.leveling.admin.dashboard.actionChanSuccessDesc', { channel: channel.toString() }),
                 ),
             ],
             flags: MessageFlags.Ephemeral,
         });
 
-        await refreshDashboard(rootInteraction, cfg, guildId);
+        await refreshDashboard(lang, rootInteraction, cfg, guildId);
     });
 
     chanCollector.on('end', (collected, reason) => {
@@ -342,7 +350,10 @@ async function handleChannel(selectInteraction, rootInteraction, cfg, guildId, c
             selectInteraction
                 .followUp({
                     embeds: [
-                        errorEmbed('Timed Out', 'No channel was selected. The setting was not changed.'),
+                        errorEmbed(
+                            t(lang, 'wolf.cmd.leveling.admin.dashboard.actionChanTimeoutTitle'),
+                            t(lang, 'wolf.cmd.leveling.admin.dashboard.actionChanTimeoutDesc'),
+                        ),
                     ],
                     flags: MessageFlags.Ephemeral,
                 })
@@ -353,21 +364,21 @@ async function handleChannel(selectInteraction, rootInteraction, cfg, guildId, c
 
 // ─── Edit Level-up Message ────────────────────────────────────────────────────
 
-async function handleMessage(selectInteraction, rootInteraction, cfg, guildId, client) {
+async function handleMessage(lang, selectInteraction, rootInteraction, cfg, guildId, client) {
     const modal = new ModalBuilder()
         .setCustomId('level_cfg_message')
-        .setTitle('Edit Level-up Message')
+        .setTitle(t(lang, 'wolf.cmd.leveling.admin.dashboard.actionMsgModalTitle'))
         .addComponents(
             new ActionRowBuilder().addComponents(
                 new TextInputBuilder()
                     .setCustomId('message_input')
-                    .setLabel('Message ({user} and {level} are available)')
+                    .setLabel(t(lang, 'wolf.cmd.leveling.admin.dashboard.actionMsgInputLabel'))
                     .setStyle(TextInputStyle.Paragraph)
-                    .setValue(cfg.levelUpMessage || '{user} has leveled up to level {level}!')
+                    .setValue(cfg.levelUpMessage || t(lang, 'wolf.cmd.leveling.admin.dashboard.defaultMsg'))
                     .setMaxLength(500)
                     .setMinLength(1)
                     .setRequired(true)
-                    .setPlaceholder('{user} has leveled up to level {level}!'),
+                    .setPlaceholder(t(lang, 'wolf.cmd.leveling.admin.dashboard.actionMsgInputPlaceholder')),
             ),
         );
 
@@ -399,30 +410,30 @@ async function handleMessage(selectInteraction, rootInteraction, cfg, guildId, c
     await submitted.reply({
         embeds: [
             successEmbed(
-                '✅ Message Updated',
-                `Level-up message saved.\n**Preview:** ${preview}`,
+                t(lang, 'wolf.cmd.leveling.admin.dashboard.actionMsgSuccessTitle'),
+                t(lang, 'wolf.cmd.leveling.admin.dashboard.actionMsgSuccessDesc', { preview: preview }),
             ),
         ],
         flags: MessageFlags.Ephemeral,
     });
 
-    await refreshDashboard(rootInteraction, cfg, guildId);
+    await refreshDashboard(lang, rootInteraction, cfg, guildId);
 }
 
 // ─── Set XP Range ─────────────────────────────────────────────────────────────
 
-async function handleXpRange(selectInteraction, rootInteraction, cfg, guildId, client) {
+async function handleXpRange(lang, selectInteraction, rootInteraction, cfg, guildId, client) {
     const currentMin = cfg.xpRange?.min ?? cfg.xpPerMessage?.min ?? 15;
     const currentMax = cfg.xpRange?.max ?? cfg.xpPerMessage?.max ?? 25;
 
     const modal = new ModalBuilder()
         .setCustomId('level_cfg_xp_range')
-        .setTitle('Set XP Range per Message')
+        .setTitle(t(lang, 'wolf.cmd.leveling.admin.dashboard.actionXpModalTitle'))
         .addComponents(
             new ActionRowBuilder().addComponents(
                 new TextInputBuilder()
                     .setCustomId('xp_min_input')
-                    .setLabel('Minimum XP (1–500)')
+                    .setLabel(t(lang, 'wolf.cmd.leveling.admin.dashboard.actionXpMinLabel'))
                     .setStyle(TextInputStyle.Short)
                     .setValue(String(currentMin))
                     .setMaxLength(3)
@@ -433,7 +444,7 @@ async function handleXpRange(selectInteraction, rootInteraction, cfg, guildId, c
             new ActionRowBuilder().addComponents(
                 new TextInputBuilder()
                     .setCustomId('xp_max_input')
-                    .setLabel('Maximum XP (1–500)')
+                    .setLabel(t(lang, 'wolf.cmd.leveling.admin.dashboard.actionXpMaxLabel'))
                     .setStyle(TextInputStyle.Short)
                     .setValue(String(currentMax))
                     .setMaxLength(3)
@@ -463,7 +474,10 @@ async function handleXpRange(selectInteraction, rootInteraction, cfg, guildId, c
     if (isNaN(newMin) || isNaN(newMax) || newMin < 1 || newMax < 1 || newMin > 500 || newMax > 500) {
         await submitted.reply({
             embeds: [
-                errorEmbed('Invalid Values', 'Both XP values must be whole numbers between **1** and **500**.'),
+                errorEmbed(
+                    t(lang, 'wolf.cmd.leveling.admin.dashboard.actionXpErrValTitle'),
+                    t(lang, 'wolf.cmd.leveling.admin.dashboard.actionXpErrValDesc'),
+                ),
             ],
             flags: MessageFlags.Ephemeral,
         });
@@ -473,7 +487,10 @@ async function handleXpRange(selectInteraction, rootInteraction, cfg, guildId, c
     if (newMin > newMax) {
         await submitted.reply({
             embeds: [
-                errorEmbed('Invalid Range', 'Minimum XP cannot be greater than maximum XP.'),
+                errorEmbed(
+                    t(lang, 'wolf.cmd.leveling.admin.dashboard.actionXpErrRangeTitle'),
+                    t(lang, 'wolf.cmd.leveling.admin.dashboard.actionXpErrRangeDesc'),
+                ),
             ],
             flags: MessageFlags.Ephemeral,
         });
@@ -486,27 +503,27 @@ async function handleXpRange(selectInteraction, rootInteraction, cfg, guildId, c
     await submitted.reply({
         embeds: [
             successEmbed(
-                '✅ XP Range Updated',
-                `Users will now earn between **${newMin}** and **${newMax}** XP per message.`,
+                t(lang, 'wolf.cmd.leveling.admin.dashboard.actionXpSuccessTitle'),
+                t(lang, 'wolf.cmd.leveling.admin.dashboard.actionXpSuccessDesc', { min: newMin, max: newMax }),
             ),
         ],
         flags: MessageFlags.Ephemeral,
     });
 
-    await refreshDashboard(rootInteraction, cfg, guildId);
+    await refreshDashboard(lang, rootInteraction, cfg, guildId);
 }
 
 // ─── Set XP Cooldown ──────────────────────────────────────────────────────────
 
-async function handleXpCooldown(selectInteraction, rootInteraction, cfg, guildId, client) {
+async function handleXpCooldown(lang, selectInteraction, rootInteraction, cfg, guildId, client) {
     const modal = new ModalBuilder()
         .setCustomId('level_cfg_cooldown')
-        .setTitle('Set XP Cooldown')
+        .setTitle(t(lang, 'wolf.cmd.leveling.admin.dashboard.actionCooldownModalTitle'))
         .addComponents(
             new ActionRowBuilder().addComponents(
                 new TextInputBuilder()
                     .setCustomId('cooldown_input')
-                    .setLabel('Cooldown in seconds (0–3600)')
+                    .setLabel(t(lang, 'wolf.cmd.leveling.admin.dashboard.actionCooldownInputLabel'))
                     .setStyle(TextInputStyle.Short)
                     .setValue(String(cfg.xpCooldown ?? 60))
                     .setMaxLength(4)
@@ -535,8 +552,8 @@ async function handleXpCooldown(selectInteraction, rootInteraction, cfg, guildId
         await submitted.reply({
             embeds: [
                 errorEmbed(
-                    'Invalid Value',
-                    'Cooldown must be a whole number between **0** and **3600** seconds.',
+                    t(lang, 'wolf.cmd.leveling.admin.dashboard.actionCooldownErrValTitle'),
+                    t(lang, 'wolf.cmd.leveling.admin.dashboard.actionCooldownErrValDesc'),
                 ),
             ],
             flags: MessageFlags.Ephemeral,
@@ -547,16 +564,22 @@ async function handleXpCooldown(selectInteraction, rootInteraction, cfg, guildId
     cfg.xpCooldown = newCooldown;
     await saveLevelingConfig(client, guildId, cfg);
 
+    const plural = newCooldown !== 1 ? (lang === 'es' ? 'es' : 's') : '';
+    const extra = newCooldown === 0 ? t(lang, 'wolf.cmd.leveling.admin.dashboard.actionCooldownSuccessExtra') : '';
+
     await submitted.reply({
         embeds: [
             successEmbed(
-                '✅ Cooldown Updated',
-                `XP cooldown set to **${newCooldown} second${newCooldown !== 1 ? 's' : ''}**.${newCooldown === 0 ? '\n> ⚠️ A cooldown of 0 means XP is granted on every message.' : ''}`,
+                t(lang, 'wolf.cmd.leveling.admin.dashboard.actionCooldownSuccessTitle'),
+                t(lang, 'wolf.cmd.leveling.admin.dashboard.actionCooldownSuccessDesc', {
+                    cooldown: newCooldown,
+                    plural: plural,
+                    extra: extra,
+                }),
             ),
         ],
         flags: MessageFlags.Ephemeral,
     });
 
-    await refreshDashboard(rootInteraction, cfg, guildId);
+    await refreshDashboard(lang, rootInteraction, cfg, guildId);
 }
-

@@ -6,6 +6,7 @@ import { botHasPermission } from '../../utils/permissionGuard.js';
 import { TitanBotError, ErrorTypes, handleInteractionError } from '../../utils/errorHandler.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
 import { logger } from '../../utils/logger.js';
+import { t, pickLanguage } from '../../services/i18n.js';
 import levelDashboard from './modules/level_dashboard.js';
 
 export default {
@@ -67,6 +68,7 @@ export default {
     category: 'Leveling',
 
     async execute(interaction, config, client) {
+        const lang = pickLanguage(config, interaction.guild);
         try {
             const deferred = await InteractionHelper.safeDefer(interaction, {
                 flags: MessageFlags.Ephemeral,
@@ -77,8 +79,8 @@ export default {
                 return await InteractionHelper.safeEditReply(interaction, {
                     embeds: [
                         errorEmbed(
-                            'Missing Permissions',
-                            'You need the **Manage Server** permission to use this command.',
+                            t(lang, 'wolf.cmd.leveling.admin.missingPermsTitle'),
+                            t(lang, 'wolf.cmd.leveling.admin.missingPermsDesc'),
                         ),
                     ],
                 });
@@ -96,15 +98,15 @@ export default {
                 const xpMax = interaction.options.getInteger('xp_max') ?? 25;
                 const message =
                     interaction.options.getString('message') ??
-                    '{user} has leveled up to level {level}!';
+                    t(lang, 'wolf.cmd.leveling.admin.dashboard.defaultMsg');
                 const xpCooldown = interaction.options.getInteger('xp_cooldown') ?? 60;
 
                 if (xpMin > xpMax) {
                     return await InteractionHelper.safeEditReply(interaction, {
                         embeds: [
                             errorEmbed(
-                                'Invalid XP Range',
-                                `Minimum XP (**${xpMin}**) cannot be greater than maximum XP (**${xpMax}**).`,
+                                t(lang, 'wolf.cmd.leveling.admin.invalidXpRangeTitle'),
+                                t(lang, 'wolf.cmd.leveling.admin.invalidXpRangeDesc', { min: xpMin, max: xpMax }),
                             ),
                         ],
                     });
@@ -114,7 +116,7 @@ export default {
                     throw new TitanBotError(
                         'Bot missing permissions in the specified channel',
                         ErrorTypes.PERMISSION,
-                        `I need **SendMessages** and **EmbedLinks** permissions in ${channel} to send level-up notifications.`,
+                        t(lang, 'wolf.cmd.leveling.admin.botMissingPermsDesc', { channel: channel.toString() }),
                     );
                 }
 
@@ -124,8 +126,8 @@ export default {
                     return await InteractionHelper.safeEditReply(interaction, {
                         embeds: [
                             errorEmbed(
-                                'Leveling System Already Active',
-                                `The leveling system is already set up on this server (level-up notifications go to <#${existingConfig.levelUpChannel}>).\n\nUse \`/level dashboard\` to adjust any settings.`,
+                                t(lang, 'wolf.cmd.leveling.admin.alreadyActiveTitle'),
+                                t(lang, 'wolf.cmd.leveling.admin.alreadyActiveDesc', { channel: existingConfig.levelUpChannel }),
                             ),
                         ],
                     });
@@ -155,14 +157,14 @@ export default {
                 return await InteractionHelper.safeEditReply(interaction, {
                     embeds: [
                         createEmbed({
-                            title: '✅ Leveling System Set Up',
-                            description:
-                                `The leveling system is now **enabled** and ready to go.\n\n` +
-                                `**Level-up Channel:** ${channel}\n` +
-                                `**XP per Message:** ${xpMin} – ${xpMax}\n` +
-                                `**XP Cooldown:** ${xpCooldown}s\n` +
-                                `**Level-up Message:** \`${message}\`\n\n` +
-                                `Use \`/level dashboard\` to adjust any of these settings at any time.`,
+                            title: t(lang, 'wolf.cmd.leveling.admin.setupSuccessTitle'),
+                            description: t(lang, 'wolf.cmd.leveling.admin.setupSuccessDesc', {
+                                channel: channel.toString(),
+                                min: xpMin,
+                                max: xpMax,
+                                cooldown: xpCooldown,
+                                message: message,
+                            }),
                             color: 'success',
                         }),
                     ],

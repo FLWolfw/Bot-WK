@@ -9,6 +9,7 @@ import { handleInteractionError, TitanBotError, ErrorTypes } from '../../utils/e
 import { checkUserPermissions } from '../../utils/permissionGuard.js';
 import { removeLevels, getUserLevelData, getLevelingConfig } from '../../services/leveling.js';
 import { createEmbed } from '../../utils/embeds.js';
+import { t, pickLanguage } from '../../services/i18n.js';
 
 import { InteractionHelper } from '../../utils/interactionHelper.js';
 export default {
@@ -39,6 +40,7 @@ export default {
 
 
   async execute(interaction, config, client) {
+    const lang = pickLanguage(config, interaction.guild);
     try {
       await InteractionHelper.safeDefer(interaction);
 
@@ -46,7 +48,7 @@ export default {
       const hasPermission = await checkUserPermissions(
         interaction,
         PermissionFlagsBits.ManageGuild,
-        'You need ManageGuild permission to use this command.'
+        t(lang, 'wolf.cmd.leveling.admin.missingPermsDesc')
       );
       if (!hasPermission) return;
 
@@ -56,7 +58,7 @@ export default {
           embeds: [
             new EmbedBuilder()
               .setColor('#f1c40f')
-              .setDescription('The leveling system is currently disabled on this server.')
+              .setDescription(t(lang, 'wolf.cmd.leveling.disabled'))
           ],
           flags: MessageFlags.Ephemeral
         });
@@ -72,7 +74,7 @@ export default {
         throw new TitanBotError(
           `User ${targetUser.id} not found in this guild`,
           ErrorTypes.USER_INPUT,
-          'The specified user is not in this server.'
+          t(lang, 'wolf.cmd.leveling.userNotFound')
         );
       }
 
@@ -82,7 +84,7 @@ export default {
         throw new TitanBotError(
           `User ${targetUser.id} is already at minimum level`,
           ErrorTypes.VALIDATION,
-          `${targetUser.tag} is already at level 0 and cannot have levels removed.`
+          t(lang, 'wolf.cmd.leveling.admin.levelremove.alreadyMinDesc', { user: targetUser.tag })
         );
       }
 
@@ -92,8 +94,12 @@ export default {
       await InteractionHelper.safeEditReply(interaction, {
         embeds: [
           createEmbed({
-            title: '✅ Levels Removed',
-            description: `Successfully removed ${levelsToRemove} levels from ${targetUser.tag}.\n**New Level:** ${updatedData.level}`,
+            title: t(lang, 'wolf.cmd.leveling.admin.levelremove.successTitle'),
+            description: t(lang, 'wolf.cmd.leveling.admin.levelremove.successDesc', {
+              levels: levelsToRemove,
+              user: targetUser.tag,
+              level: updatedData.level
+            }),
             color: 'success'
           })
         ]
