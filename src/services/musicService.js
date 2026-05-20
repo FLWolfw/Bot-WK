@@ -13,37 +13,56 @@ export function getPlayer() {
 /**
  * Create and configure the discord-player instance.
  *
- * Sources (priority): Spotify metadata (resolved to YouTube), YouTube,
- * SoundCloud, Apple Music, AttachmentExtractor, free-text search. The
- * Spotify extractor only reads the public playlist/track metadata —
- * actual audio is matched on YouTube (Spotify TOS prohibits direct
- * streaming through third-party bots).
+ * Sources (priority): YouTube (via youtubei.js + BotGuard), Spotify
+ * metadata → resolved to YouTube audio, SoundCloud, Apple Music,
+ * Attachments.
  *
- * The bot's access gate in interactionCreate already filters /music
- * out of non-approved guilds, so no extra gating is needed here.
+ * YoutubeiExtractor is configured with innertubeClient: 'TV_EMBEDDED'
+ * which avoids YouTube's bot-detection checks that block the default
+ * WEB client. The bgutils-js + jsdom stack handles BotGuard challenges
+ * automatically.
  */
 export async function initMusic(client) {
   if (_player) return _player;
 
-  const player = new Player(client, {
-    ytdlOptions: { quality: 'highestaudio', highWaterMark: 1 << 25 },
-  });
+  // discord-player v7 — no ytdlOptions needed (we use youtubei, not ytdl)
+  const player = new Player(client);
 
+  // ── Load default extractors (Spotify, SoundCloud, Apple Music, etc.) ──
   try {
     await player.extractors.loadMulti(DefaultExtractors);
+    logger.info('musicService: DefaultExtractors loaded');
   } catch (err) {
     logger.error('musicService: failed to load DefaultExtractors', { error: err?.message });
   }
 
-  // discord-player v7's DefaultExtractors does NOT include a YouTube
-  // extractor — without this the bot couldn't play YouTube URLs and
-  // Spotify URLs couldn't resolve their audio match. v1 of
-  // discord-player-youtubei is pure JS (no yt-dlp dependency) so it
-  // works on Alpine without system binaries.
+  // ── YouTube via youtubei.js + BotGuard (discord-player-youtubei) ──
+  // innertubeClient: 'TV_EMBEDDED' bypasses the strict bot-checks that
+  // YouTube applies to the default 'WEB' client. Falls back to
+  // 'ANDROID' if TV_EMBEDDED is ever restricted in the future.
   try {
-    await player.extractors.register(YoutubeiExtractor, {});
+    await player.extractors.register(YoutubeiExtractor, {
+      innertubeClient: 'TV_EMBEDDED',
+    });
+    logger.info('musicService: YoutubeiExtractor registered (client: TV_EMBEDDED)');
   } catch (err) {
-    logger.error('musicService: failed to register YoutubeiExtractor', { error: err?.message });
+    // If TV_EMBEDDED fails, try ANDROID as fallback
+    logger.warn('musicService: TV_EMBEDDED failed, retrying with ANDROID', { error: err?.message });
+    try {
+      await player.extractors.register(YoutubeiExtractor, {
+        innertubeClient: 'ANDROID',
+      });
+      logger.info('musicService: YoutubeiExtractor registered (client: ANDROID fallback)');
+    } catch (err2) {
+      logger.error('musicService: failed to register YoutubeiExtractor', { error: err2?.message });
+    }
+  }
+
+  const registeredCount = player.extractors.size;
+  logger.info(`musicService: ${registeredCount} extractors active`);
+
+  if (registeredCount === 0) {
+    logger.warn('musicService: no extractors registered — /music play will not work');
   }
 
   const lang = (queue) => queue.metadata?.lang === 'en' ? 'en' : 'es';
@@ -88,11 +107,11 @@ export async function initMusic(client) {
   });
 
   player.events.on('playerError', (queue, err) => {
-    logger.error('music playerError', { error: err?.message });
+    logger.error('music playerError', { error: err?.message, stack: err?.stack?.slice(0, 500) });
   });
 
   player.events.on('error', (queue, err) => {
-    logger.error('music queue error', { error: err?.message });
+    logger.error('music queue error', { error: err?.message, stack: err?.stack?.slice(0, 500) });
     const L = lang(queue);
     queue.metadata?.channel?.send({
       embeds: [{
@@ -104,6 +123,6 @@ export async function initMusic(client) {
   });
 
   _player = player;
-  logger.info('Music player ready (sources: Spotify/YouTube/SoundCloud)');
+  logger.info('Music player ready (YouTube/Spotify/SoundCloud)');
   return player;
 }

@@ -188,12 +188,13 @@ async function handlePlay(interaction, lang, config) {
       }],
     });
   } catch (err) {
-    logger.error('music play error', { error: err?.message });
+    const errMsg = String(err?.message || err);
+    logger.error('music play error', { error: errMsg, stack: err?.stack?.slice(0, 500) });
     return interaction.editReply({
       embeds: [{
         color: 0xef4444,
         title: t(lang, 'wolf.music.cantPlay'),
-        description: '```' + String(err?.message || err).slice(0, 700) + '```',
+        description: '```' + errMsg.slice(0, 900) + '```',
       }],
     });
   }
