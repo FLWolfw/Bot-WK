@@ -12,6 +12,7 @@ import {
 } from '../../services/giveawayService.js';
 import { logEvent, EVENT_TYPES } from '../../services/loggingService.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
+import { t, pickLanguage } from '../../services/i18n.js';
 
 export default {
     data: new SlashCommandBuilder()
@@ -48,24 +49,23 @@ export default {
         )
         .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
 
-    async execute(interaction) {
+    async execute(interaction, config) {
+        const lang = pickLanguage(config, interaction.guild);
         try {
-            
             if (!interaction.inGuild()) {
                 throw new TitanBotError(
                     'Giveaway command used outside guild',
                     ErrorTypes.VALIDATION,
-                    'This command can only be used in a server.',
+                    t(lang, 'wolf.cmd.giveaway.notInGuild'),
                     { userId: interaction.user.id }
                 );
             }
 
-            
             if (!interaction.member.permissions.has(PermissionFlagsBits.ManageGuild)) {
                 throw new TitanBotError(
                     'User lacks ManageGuild permission',
                     ErrorTypes.PERMISSION,
-                    "You need the 'Manage Server' permission to start a giveaway.",
+                    t(lang, 'wolf.cmd.giveaway.permCreate'),
                     { userId: interaction.user.id, guildId: interaction.guildId }
                 );
             }
@@ -88,7 +88,7 @@ export default {
                 throw new TitanBotError(
                     'Target channel is not text-based',
                     ErrorTypes.VALIDATION,
-                    'The channel must be a text channel.',
+                    t(lang, 'wolf.cmd.giveaway.notTextChannel'),
                     { channelId: targetChannel.id, channelType: targetChannel.type }
                 );
             }
@@ -176,12 +176,7 @@ export default {
 
             
             await InteractionHelper.safeReply(interaction, {
-                embeds: [
-                    successEmbed(
-                        `Giveaway Started! 🎉`,
-                        `A new giveaway for **${prizeName}** has been started in ${targetChannel} and will end in **${durationString}**.`,
-                    ),
-                ],
+                embeds: [successEmbed(t(lang, 'wolf.cmd.giveaway.createdTitle'), t(lang, 'wolf.cmd.giveaway.createdDesc', { prize: prizeName, channel: `${targetChannel}`, duration: durationString }))],
                 flags: MessageFlags.Ephemeral,
             });
 

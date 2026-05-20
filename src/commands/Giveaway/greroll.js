@@ -10,6 +10,7 @@ import {
 } from '../../services/giveawayService.js';
 import { logEvent, EVENT_TYPES } from '../../services/loggingService.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
+import { t, pickLanguage } from '../../services/i18n.js';
 
 export default {
     data: new SlashCommandBuilder()
@@ -23,26 +24,14 @@ export default {
         )
         .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
 
-    async execute(interaction) {
+    async execute(interaction, config) {
+        const lang = pickLanguage(config, interaction.guild);
         try {
-            
             if (!interaction.inGuild()) {
-                throw new TitanBotError(
-                    'Giveaway command used outside guild',
-                    ErrorTypes.VALIDATION,
-                    'This command can only be used in a server.',
-                    { userId: interaction.user.id }
-                );
+                throw new TitanBotError('Giveaway command used outside guild', ErrorTypes.VALIDATION, t(lang, 'wolf.cmd.giveaway.notInGuild'), { userId: interaction.user.id });
             }
-
-            
             if (!interaction.member.permissions.has(PermissionFlagsBits.ManageGuild)) {
-                throw new TitanBotError(
-                    'User lacks ManageGuild permission',
-                    ErrorTypes.PERMISSION,
-                    "You need the 'Manage Server' permission to reroll a giveaway.",
-                    { userId: interaction.user.id, guildId: interaction.guildId }
-                );
+                throw new TitanBotError('User lacks ManageGuild permission', ErrorTypes.PERMISSION, t(lang, 'wolf.cmd.giveaway.permReroll'), { userId: interaction.user.id, guildId: interaction.guildId });
             }
 
             logger.info(`Giveaway reroll initiated by ${interaction.user.tag} in guild ${interaction.guildId}`);
@@ -51,12 +40,7 @@ export default {
 
             
             if (!messageId || !/^\d+$/.test(messageId)) {
-                throw new TitanBotError(
-                    'Invalid message ID format',
-                    ErrorTypes.VALIDATION,
-                    'Please provide a valid message ID.',
-                    { providedId: messageId }
-                );
+                throw new TitanBotError('Invalid message ID format', ErrorTypes.VALIDATION, t(lang, 'wolf.cmd.giveaway.invalidId'), { providedId: messageId });
             }
 
             const giveaways = await getGuildGiveaways(
@@ -68,33 +52,17 @@ export default {
             const giveaway = giveaways.find(g => g.messageId === messageId);
 
             if (!giveaway) {
-                throw new TitanBotError(
-                    `Giveaway not found: ${messageId}`,
-                    ErrorTypes.VALIDATION,
-                    "No giveaway was found with that message ID in the database.",
-                    { messageId, guildId: interaction.guildId }
-                );
+                throw new TitanBotError(`Giveaway not found: ${messageId}`, ErrorTypes.VALIDATION, t(lang, 'wolf.cmd.giveaway.notFound'), { messageId, guildId: interaction.guildId });
             }
 
-            
             if (!giveaway.isEnded && !giveaway.ended) {
-                throw new TitanBotError(
-                    `Giveaway still active: ${messageId}`,
-                    ErrorTypes.VALIDATION,
-                    "This giveaway is still active. Please use `/gend` to end it first.",
-                    { messageId, status: 'active' }
-                );
+                throw new TitanBotError(`Giveaway still active: ${messageId}`, ErrorTypes.VALIDATION, t(lang, 'wolf.cmd.giveaway.stillActive'), { messageId, status: 'active' });
             }
 
             const participants = giveaway.participants || [];
-            
+
             if (participants.length < giveaway.winnerCount) {
-                throw new TitanBotError(
-                    `Insufficient participants for reroll: ${participants.length} < ${giveaway.winnerCount}`,
-                    ErrorTypes.VALIDATION,
-                    "Not enough entries to pick the required number of winners.",
-                    { participantsCount: participants.length, winnersNeeded: giveaway.winnerCount }
-                );
+                throw new TitanBotError(`Insufficient participants for reroll: ${participants.length} < ${giveaway.winnerCount}`, ErrorTypes.VALIDATION, t(lang, 'wolf.cmd.giveaway.notEnoughEntries'), { participantsCount: participants.length, winnersNeeded: giveaway.winnerCount });
             }
 
             
@@ -130,12 +98,7 @@ export default {
                 logger.warn(`Could not find channel for giveaway ${messageId}, but saved new winners to database`);
                 
                 return InteractionHelper.safeReply(interaction, {
-                    embeds: [
-                        successEmbed(
-                            "Reroll Complete",
-                            "The new winners have been selected and saved to the database. Could not find channel to announce.",
-                        ),
-                    ],
+                    embeds: [successEmbed(t(lang, 'wolf.cmd.giveaway.rerollComplete'), t(lang, 'wolf.cmd.giveaway.rerollNoChannel'))],
                     flags: MessageFlags.Ephemeral,
                 });
             }
@@ -210,12 +173,7 @@ export default {
                 }
 
                 return InteractionHelper.safeReply(interaction, {
-                    embeds: [
-                        successEmbed(
-                            "Reroll Complete",
-                            `The new winners have been announced in ${channel}. (Original message not found).`,
-                        ),
-                    ],
+                    embeds: [successEmbed(t(lang, 'wolf.cmd.giveaway.rerollComplete'), t(lang, 'wolf.cmd.giveaway.rerollDesc', { channel: `${channel}` }))],
                     flags: MessageFlags.Ephemeral,
                 });
             }
@@ -290,12 +248,7 @@ export default {
             }
 
             return InteractionHelper.safeReply(interaction, {
-                embeds: [
-                    successEmbed(
-                        "Reroll Successful ✅",
-                        `Successfully rerolled the giveaway for **${giveaway.prize}** in ${channel}. Selected ${newWinners.length} new winner(s).`,
-                    ),
-                ],
+                embeds: [successEmbed(t(lang, 'wolf.cmd.giveaway.rerollSuccess'), t(lang, 'wolf.cmd.giveaway.rerollSuccessDesc', { prize: giveaway.prize, channel: `${channel}`, winners: newWinners.length }))],
                 flags: MessageFlags.Ephemeral,
             });
 

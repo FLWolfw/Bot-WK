@@ -10,6 +10,7 @@ import {
 } from '../../services/giveawayService.js';
 import { logEvent, EVENT_TYPES } from '../../services/loggingService.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
+import { t, pickLanguage } from '../../services/i18n.js';
 
 export default {
     data: new SlashCommandBuilder()
@@ -25,26 +26,14 @@ export default {
         )
         .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
 
-    async execute(interaction) {
+    async execute(interaction, config) {
+        const lang = pickLanguage(config, interaction.guild);
         try {
-            
             if (!interaction.inGuild()) {
-                throw new TitanBotError(
-                    'Giveaway command used outside guild',
-                    ErrorTypes.VALIDATION,
-                    'This command can only be used in a server.',
-                    { userId: interaction.user.id }
-                );
+                throw new TitanBotError('Giveaway command used outside guild', ErrorTypes.VALIDATION, t(lang, 'wolf.cmd.giveaway.notInGuild'), { userId: interaction.user.id });
             }
-
-            
             if (!interaction.member.permissions.has(PermissionFlagsBits.ManageGuild)) {
-                throw new TitanBotError(
-                    'User lacks ManageGuild permission',
-                    ErrorTypes.PERMISSION,
-                    "You need the 'Manage Server' permission to end a giveaway.",
-                    { userId: interaction.user.id, guildId: interaction.guildId }
-                );
+                throw new TitanBotError('User lacks ManageGuild permission', ErrorTypes.PERMISSION, t(lang, 'wolf.cmd.giveaway.permEnd'), { userId: interaction.user.id, guildId: interaction.guildId });
             }
 
             logger.info(`Giveaway end initiated by ${interaction.user.tag} in guild ${interaction.guildId}`);
@@ -53,24 +42,14 @@ export default {
 
             
             if (!messageId || !/^\d+$/.test(messageId)) {
-                throw new TitanBotError(
-                    'Invalid message ID format',
-                    ErrorTypes.VALIDATION,
-                    'Please provide a valid message ID.',
-                    { providedId: messageId }
-                );
+                throw new TitanBotError('Invalid message ID format', ErrorTypes.VALIDATION, t(lang, 'wolf.cmd.giveaway.invalidId'), { providedId: messageId });
             }
 
             const giveaways = await getGuildGiveaways(interaction.client, interaction.guildId);
             const giveaway = giveaways.find(g => g.messageId === messageId);
 
             if (!giveaway) {
-                throw new TitanBotError(
-                    `Giveaway not found: ${messageId}`,
-                    ErrorTypes.VALIDATION,
-                    "No giveaway was found with that message ID in the database.",
-                    { messageId, guildId: interaction.guildId }
-                );
+                throw new TitanBotError(`Giveaway not found: ${messageId}`, ErrorTypes.VALIDATION, t(lang, 'wolf.cmd.giveaway.notFound'), { messageId, guildId: interaction.guildId });
             }
 
             
@@ -189,12 +168,7 @@ export default {
             logger.info(`Giveaway successfully ended by ${interaction.user.tag}: ${messageId}`);
 
             return InteractionHelper.safeReply(interaction, {
-                embeds: [
-                    successEmbed(
-                        "Giveaway Ended ✅",
-                        `Successfully ended the giveaway for **${updatedGiveaway.prize}** in ${channel}. Selected ${winners.length} winner(s) from ${endResult.participantCount} entries.`,
-                    ),
-                ],
+                embeds: [successEmbed(t(lang, 'wolf.cmd.giveaway.endedTitle'), t(lang, 'wolf.cmd.giveaway.endedDesc', { prize: updatedGiveaway.prize, channel: `${channel}`, winners: winners.length, entries: endResult.participantCount }))],
                 flags: MessageFlags.Ephemeral,
             });
 

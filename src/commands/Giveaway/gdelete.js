@@ -6,6 +6,7 @@ import { getGuildGiveaways, deleteGiveaway } from '../../utils/giveaways.js';
 import { logEvent, EVENT_TYPES } from '../../services/loggingService.js';
 
 import { InteractionHelper } from '../../utils/interactionHelper.js';
+import { t, pickLanguage } from '../../services/i18n.js';
 export default {
     data: new SlashCommandBuilder()
         .setName("gdelete")
@@ -20,26 +21,14 @@ export default {
         )
         .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
 
-    async execute(interaction) {
+    async execute(interaction, config) {
+        const lang = pickLanguage(config, interaction.guild);
         try {
-            
             if (!interaction.inGuild()) {
-                throw new TitanBotError(
-                    'Giveaway command used outside guild',
-                    ErrorTypes.VALIDATION,
-                    'This command can only be used in a server.',
-                    { userId: interaction.user.id }
-                );
+                throw new TitanBotError('Giveaway command used outside guild', ErrorTypes.VALIDATION, t(lang, 'wolf.cmd.giveaway.notInGuild'), { userId: interaction.user.id });
             }
-
-            
             if (!interaction.member.permissions.has(PermissionFlagsBits.ManageGuild)) {
-                throw new TitanBotError(
-                    'User lacks ManageGuild permission',
-                    ErrorTypes.PERMISSION,
-                    "You need the 'Manage Server' permission to delete a giveaway.",
-                    { userId: interaction.user.id, guildId: interaction.guildId }
-                );
+                throw new TitanBotError('User lacks ManageGuild permission', ErrorTypes.PERMISSION, t(lang, 'wolf.cmd.giveaway.permDelete'), { userId: interaction.user.id, guildId: interaction.guildId });
             }
 
             logger.info(`Giveaway deletion started by ${interaction.user.tag} in guild ${interaction.guildId}`);
@@ -48,24 +37,14 @@ export default {
 
             
             if (!messageId || !/^\d+$/.test(messageId)) {
-                throw new TitanBotError(
-                    'Invalid message ID format',
-                    ErrorTypes.VALIDATION,
-                    'Please provide a valid message ID.',
-                    { providedId: messageId }
-                );
+                throw new TitanBotError('Invalid message ID format', ErrorTypes.VALIDATION, t(lang, 'wolf.cmd.giveaway.invalidId'), { providedId: messageId });
             }
 
             const giveaways = await getGuildGiveaways(interaction.client, interaction.guildId);
             const giveaway = giveaways.find(g => g.messageId === messageId);
 
             if (!giveaway) {
-                throw new TitanBotError(
-                    `Giveaway not found: ${messageId}`,
-                    ErrorTypes.VALIDATION,
-                    "No giveaway was found with that message ID.",
-                    { messageId, guildId: interaction.guildId }
-                );
+                throw new TitanBotError(`Giveaway not found: ${messageId}`, ErrorTypes.VALIDATION, t(lang, 'wolf.cmd.giveaway.notFound'), { messageId, guildId: interaction.guildId });
             }
 
             let deletedMessage = false;
@@ -140,18 +119,18 @@ export default {
             }
 
             const statusMsg = deletedMessage
-                ? `and the message was deleted from #${channelName}`
-                : `but the message was already deleted or the channel was inaccessible.`;
+                ? t(lang, 'wolf.cmd.giveaway.deletedMessage', { channel: channelName })
+                : t(lang, 'wolf.cmd.giveaway.deletedNoMessage');
 
             const winnerIds = Array.isArray(giveaway.winnerIds) ? giveaway.winnerIds : [];
             const hasWinners = winnerIds.length > 0;
             const wasEnded = giveaway.ended === true || giveaway.isEnded === true || hasWinners;
 
             const winnerStatusMsg = hasWinners
-                ? `This giveaway already had ${winnerIds.length} winner(s) selected.`
+                ? t(lang, 'wolf.cmd.giveaway.winnerHad', { n: winnerIds.length })
                 : wasEnded
-                    ? 'This giveaway was ended with no valid winners.'
-                    : 'No winner was picked before deletion.';
+                    ? t(lang, 'wolf.cmd.giveaway.winnerEndedNone')
+                    : t(lang, 'wolf.cmd.giveaway.winnerNone');
 
             logger.info(`Giveaway deleted: ${messageId} in ${channelName}`);
 
@@ -184,12 +163,7 @@ export default {
             }
 
             return InteractionHelper.safeReply(interaction, {
-                embeds: [
-                    successEmbed(
-                        "Giveaway Deleted",
-                        `Successfully deleted the giveaway for **${giveaway.prize}** ${statusMsg}. ${winnerStatusMsg}`,
-                    ),
-                ],
+                embeds: [successEmbed(t(lang, 'wolf.cmd.giveaway.deletedTitle'), t(lang, 'wolf.cmd.giveaway.deletedDesc', { prize: giveaway.prize, status: statusMsg, winnerStatus: winnerStatusMsg }))],
                 flags: MessageFlags.Ephemeral,
             });
 
