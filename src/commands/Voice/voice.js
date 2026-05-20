@@ -1,4 +1,4 @@
-import { SlashCommandBuilder, PermissionFlagsBits, MessageFlags } from 'discord.js';
+import { SlashCommandBuilder, PermissionFlagsBits, MessageFlags, ChannelType } from 'discord.js';
 import { joinVoiceChannel, getVoiceConnection } from '@discordjs/voice';
 import { logger } from '../../utils/logger.js';
 import { t, pickLanguage } from '../../services/i18n.js';
@@ -8,8 +8,15 @@ export default {
     .setName('voice')
     .setDescription('Trae el bot a un canal de voz y déjalo ahí (sin música).')
     .setDMPermission(false)
+    .setDefaultMemberPermissions(PermissionFlagsBits.MoveMembers)
     .addSubcommand((s) =>
-      s.setName('join').setDescription('El bot entra a tu canal de voz y se queda permanentemente.'))
+      s.setName('join')
+        .setDescription('El bot entra a un canal de voz y se queda permanentemente.')
+        .addChannelOption((o) =>
+          o.setName('channel')
+            .setDescription('Canal de voz al que entrar (no hace falta que tú estés dentro).')
+            .addChannelTypes(ChannelType.GuildVoice, ChannelType.GuildStageVoice)
+            .setRequired(true)))
     .addSubcommand((s) =>
       s.setName('leave').setDescription('El bot sale del canal de voz.')),
 
@@ -18,10 +25,10 @@ export default {
     const sub = interaction.options.getSubcommand();
 
     if (sub === 'join') {
-      const vc = interaction.member?.voice?.channel;
-      if (!vc) {
+      const vc = interaction.options.getChannel('channel');
+      if (!vc || (vc.type !== ChannelType.GuildVoice && vc.type !== ChannelType.GuildStageVoice)) {
         return interaction.reply({
-          embeds: [{ color: 0xef4444, title: t(lang, 'wolf.cmd.voice.notInVcTitle'), description: t(lang, 'wolf.cmd.voice.notInVcDesc') }],
+          embeds: [{ color: 0xef4444, title: t(lang, 'wolf.cmd.voice.invalidChannelTitle'), description: t(lang, 'wolf.cmd.voice.invalidChannelDesc') }],
           flags: MessageFlags.Ephemeral,
         });
       }

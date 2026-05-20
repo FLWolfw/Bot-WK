@@ -245,8 +245,8 @@ export default {
         defaultButtonLabel: 'Crear Ticket',
       },
       voice: {
-        notInVcTitle: '🔇 No estás en un canal de voz',
-        notInVcDesc: 'Únete a un canal de voz primero.',
+        invalidChannelTitle: '❌ Canal inválido',
+        invalidChannelDesc: 'Debes elegir un canal de voz válido.',
         noPermsTitle: '🚫 Sin permisos',
         noPermsDesc: 'No puedo conectarme o hablar en {channel}.',
         joinedTitle: '✅ Conectado',
