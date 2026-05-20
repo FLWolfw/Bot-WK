@@ -244,6 +244,18 @@ export default {
         defaultPanelMessage: 'Pulsa el botón de abajo para crear un ticket de soporte.',
         defaultButtonLabel: 'Crear Ticket',
       },
+      voice: {
+        notInVcTitle: '🔇 No estás en un canal de voz',
+        notInVcDesc: 'Únete a un canal de voz primero.',
+        noPermsTitle: '🚫 Sin permisos',
+        noPermsDesc: 'No puedo conectarme o hablar en {channel}.',
+        joinedTitle: '✅ Conectado',
+        joinedDesc: 'Me uní a {channel}. Me quedaré aquí hasta que uses `/voice leave`.',
+        notConnectedTitle: 'ℹ️ No estoy en voz',
+        notConnectedDesc: 'No estoy conectado a ningún canal de voz en este servidor.',
+        leftTitle: '👋 Desconectado',
+        leftDesc: 'Salí del canal de voz.',
+      },
       economy: {
         botNoBalance: 'Los bots no tienen balance económico.',
         failedToLoad: 'No se pudieron cargar tus datos económicos. Inténtalo más tarde.',

@@ -244,6 +244,18 @@ export default {
         defaultPanelMessage: 'Click the button below to create a support ticket.',
         defaultButtonLabel: 'Create Ticket',
       },
+      voice: {
+        notInVcTitle: "🔇 You're not in a voice channel",
+        notInVcDesc: 'Join a voice channel first.',
+        noPermsTitle: '🚫 Missing permissions',
+        noPermsDesc: "I can't connect or speak in {channel}.",
+        joinedTitle: '✅ Connected',
+        joinedDesc: 'Joined {channel}. I will stay here until you use `/voice leave`.',
+        notConnectedTitle: "ℹ️ I'm not in voice",
+        notConnectedDesc: "I'm not connected to any voice channel in this server.",
+        leftTitle: '👋 Disconnected',
+        leftDesc: 'Left the voice channel.',
+      },
       economy: {
         botNoBalance: "Bots don't have an economy balance.",
         failedToLoad: 'Failed to load your economy data. Please try again later.',
