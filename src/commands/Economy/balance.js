@@ -4,6 +4,7 @@ import { getEconomyData, getMaxBankCapacity } from '../../utils/economy.js';
 import { withErrorHandling, createError, ErrorTypes } from '../../utils/errorHandler.js';
 import { logger } from '../../utils/logger.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
+import { t, pickLanguage } from '../../services/i18n.js';
 
 export default {
     data: new SlashCommandBuilder()
@@ -17,31 +18,23 @@ export default {
         ),
 
     execute: withErrorHandling(async (interaction, config, client) => {
+        const lang = pickLanguage(config, interaction.guild);
         const deferred = await InteractionHelper.safeDefer(interaction);
         if (!deferred) return;
-            
+
             const targetUser = interaction.options.getUser("user") || interaction.user;
             const guildId = interaction.guildId;
 
             logger.debug(`[ECONOMY] Balance check for ${targetUser.id}`, { userId: targetUser.id, guildId });
 
             if (targetUser.bot) {
-                throw createError(
-                    "Bot user queried for balance",
-                    ErrorTypes.VALIDATION,
-                    "Bots don't have an economy balance."
-                );
+                throw createError("Bot user queried for balance", ErrorTypes.VALIDATION, t(lang, 'wolf.cmd.economy.botNoBalance'));
             }
 
             const userData = await getEconomyData(client, guildId, targetUser.id);
-            
+
             if (!userData) {
-                throw createError(
-                    "Failed to load economy data",
-                    ErrorTypes.DATABASE,
-                    "Failed to load economy data. Please try again later.",
-                    { userId: targetUser.id, guildId }
-                );
+                throw createError("Failed to load economy data", ErrorTypes.DATABASE, t(lang, 'wolf.cmd.economy.failedToLoad'), { userId: targetUser.id, guildId });
             }
 
             const maxBank = getMaxBankCapacity(userData);
@@ -50,28 +43,16 @@ export default {
             const bank = typeof userData.bank === 'number' ? userData.bank : 0;
 
             const embed = createEmbed({
-                title: `💰 ${targetUser.username}'s Balance`,
-                description: `Here is the current financial status for ${targetUser.username}.`,
+                title: `💰 ${t(lang, 'wolf.cmd.economy.balanceTitle', { user: targetUser.username })}`,
+                description: t(lang, 'wolf.cmd.economy.balanceDesc', { user: targetUser.username }),
             })
                 .addFields(
-                    {
-                        name: "💵 Cash",
-                        value: `$${wallet.toLocaleString()}`,
-                        inline: true,
-                    },
-                    {
-                        name: "🏦 Bank",
-                        value: `$${bank.toLocaleString()} / $${maxBank.toLocaleString()}`,
-                        inline: true,
-                    },
-                    {
-                        name: "💎 Total",
-                        value: `$${(wallet + bank).toLocaleString()}`,
-                        inline: true,
-                    }
+                    { name: t(lang, 'wolf.cmd.economy.cash'), value: `$${wallet.toLocaleString()}`, inline: true },
+                    { name: t(lang, 'wolf.cmd.economy.bank'), value: `$${bank.toLocaleString()} / $${maxBank.toLocaleString()}`, inline: true },
+                    { name: t(lang, 'wolf.cmd.economy.total'), value: `$${(wallet + bank).toLocaleString()}`, inline: true },
                 )
                 .setFooter({
-                    text: `Requested by ${interaction.user.tag}`,
+                    text: t(lang, 'wolf.cmd.economy.requestedBy', { user: interaction.user.tag }),
                     iconURL: interaction.user.displayAvatarURL(),
                 });
 

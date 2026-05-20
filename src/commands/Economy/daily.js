@@ -6,6 +6,7 @@ import { formatDuration } from '../../utils/helpers.js';
 import { withErrorHandling, createError, ErrorTypes } from '../../utils/errorHandler.js';
 import { logger } from '../../utils/logger.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
+import { t, pickLanguage } from '../../services/i18n.js';
 
 const DAILY_COOLDOWN = 24 * 60 * 60 * 1000;
 const DAILY_AMOUNT = 1000;
@@ -17,9 +18,10 @@ export default {
         .setDescription('Claim your daily cash reward'),
 
     execute: withErrorHandling(async (interaction, config, client) => {
+        const lang = pickLanguage(config, interaction.guild);
         const deferred = await InteractionHelper.safeDefer(interaction);
         if (!deferred) return;
-            
+
             const userId = interaction.user.id;
             const guildId = interaction.guildId;
             const now = Date.now();
@@ -27,26 +29,16 @@ export default {
             logger.debug(`[ECONOMY] Daily claimed started for ${userId}`, { userId, guildId });
 
             const userData = await getEconomyData(client, guildId, userId);
-            
+
             if (!userData) {
-                throw createError(
-                    "Failed to load economy data for daily",
-                    ErrorTypes.DATABASE,
-                    "Failed to load your economy data. Please try again later.",
-                    { userId, guildId }
-                );
+                throw createError("Failed to load economy data for daily", ErrorTypes.DATABASE, t(lang, 'wolf.cmd.economy.failedToLoad'), { userId, guildId });
             }
-            
+
             const lastDaily = userData.lastDaily || 0;
 
             if (now < lastDaily + DAILY_COOLDOWN) {
                 const timeRemaining = lastDaily + DAILY_COOLDOWN - now;
-                throw createError(
-                    "Daily cooldown active",
-                    ErrorTypes.RATE_LIMIT,
-                    `You need to wait before claiming daily again. Try again in **${formatDuration(timeRemaining)}**.`,
-                    { timeRemaining, cooldownType: 'daily' }
-                );
+                throw createError("Daily cooldown active", ErrorTypes.RATE_LIMIT, t(lang, 'wolf.cmd.economy.dailyCooldown', { time: formatDuration(timeRemaining) }), { timeRemaining, cooldownType: 'daily' });
             }
 
             const guildConfig = await getGuildConfig(client, guildId);
@@ -65,7 +57,7 @@ export default {
                     DAILY_AMOUNT * PREMIUM_BONUS_PERCENTAGE,
                 );
                 earned += bonusAmount;
-                bonusMessage = `\n✨ **Premium Bonus:** +$${bonusAmount.toLocaleString()}`;
+                bonusMessage = t(lang, 'wolf.cmd.economy.premiumBonus', { amount: bonusAmount.toLocaleString() });
                 hasPremiumRole = true;
             }
 
@@ -84,18 +76,18 @@ export default {
             });
 
             const embed = successEmbed(
-                "✅ Daily Claimed!",
-                `You have claimed your daily **$${earned.toLocaleString()}**!${bonusMessage}`
+                t(lang, 'wolf.cmd.economy.dailyClaimedTitle'),
+                t(lang, 'wolf.cmd.economy.dailyClaimedDesc', { amount: earned.toLocaleString(), bonus: bonusMessage })
             )
                 .addFields({
-                    name: "New Cash Balance",
+                    name: t(lang, 'wolf.cmd.economy.newCashBalance'),
                     value: `$${userData.wallet.toLocaleString()}`,
                     inline: true,
                 })
                 .setFooter({
                     text: hasPremiumRole
-                        ? `Next claim in 24 hours. (Premium Active)`
-                        : `Next claim in 24 hours.`,
+                        ? t(lang, 'wolf.cmd.economy.nextClaimPremium')
+                        : t(lang, 'wolf.cmd.economy.nextClaim'),
                 });
 
             await InteractionHelper.safeEditReply(interaction, { embeds: [embed] });

@@ -4,6 +4,7 @@ import { getEconomyData, setEconomyData } from '../../utils/economy.js';
 import { withErrorHandling, createError, ErrorTypes } from '../../utils/errorHandler.js';
 import { logger } from '../../utils/logger.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
+import { t, pickLanguage } from '../../services/i18n.js';
 
 const WORK_COOLDOWN = 30 * 60 * 1000;
 const MIN_WORK_AMOUNT = 50;
@@ -28,9 +29,10 @@ export default {
         .setDescription('Work to earn some money'),
 
     execute: withErrorHandling(async (interaction, config, client) => {
+        const lang = pickLanguage(config, interaction.guild);
         const deferred = await InteractionHelper.safeDefer(interaction);
         if (!deferred) return;
-            
+
             const userId = interaction.user.id;
             const guildId = interaction.guildId;
             const now = Date.now();
@@ -38,12 +40,7 @@ export default {
             const userData = await getEconomyData(client, guildId, userId);
 
             if (!userData) {
-                throw createError(
-                    "Failed to load economy data for work",
-                    ErrorTypes.DATABASE,
-                    "Failed to load your economy data. Please try again later.",
-                    { userId, guildId }
-                );
+                throw createError("Failed to load economy data for work", ErrorTypes.DATABASE, t(lang, 'wolf.cmd.economy.failedToLoad'), { userId, guildId });
             }
 
             logger.debug(`[ECONOMY] Work command started for ${userId}`, { userId, guildId });
@@ -65,7 +62,7 @@ export default {
                     throw createError(
                         "Work cooldown active",
                         ErrorTypes.RATE_LIMIT,
-                        `You're working too fast! Wait **${Math.floor(remaining / 3600000)}h ${Math.floor((remaining % 3600000) / 60000)}m** before working again.`,
+                        t(lang, 'wolf.cmd.economy.workCooldown', { hours: Math.floor(remaining / 3600000), minutes: Math.floor((remaining % 3600000) / 60000) }),
                         { timeRemaining: remaining, cooldownType: 'work' }
                     );
                 }
@@ -78,7 +75,7 @@ export default {
             let multiplierMessage = "";
             if (hasLaptop > 0) {
                 earned = Math.floor(earned * LAPTOP_MULTIPLIER);
-                multiplierMessage = "\n💻 **Laptop Bonus:** +50% earnings!";
+                multiplierMessage = t(lang, 'wolf.cmd.economy.laptopBonus');
             }
 
             userData.wallet = (userData.wallet || 0) + earned;
@@ -98,23 +95,15 @@ export default {
             });
 
             const embed = successEmbed(
-                "💼 Work Complete!",
-                `You worked as a **${job}** and earned **$${earned.toLocaleString()}**!${multiplierMessage}`
+                t(lang, 'wolf.cmd.economy.workCompleteTitle'),
+                t(lang, 'wolf.cmd.economy.workCompleteDesc', { job, amount: earned.toLocaleString(), bonus: multiplierMessage })
             )
                 .addFields(
-                    {
-                        name: "💰 New Balance",
-                        value: `$${userData.wallet.toLocaleString()}`,
-                        inline: true,
-                    },
-                    {
-                        name: "⏰ Next Work",
-                        value: `<t:${Math.floor((now + WORK_COOLDOWN) / 1000)}:R>`,
-                        inline: true,
-                    }
+                    { name: t(lang, 'wolf.cmd.economy.newBalance'), value: `$${userData.wallet.toLocaleString()}`, inline: true },
+                    { name: t(lang, 'wolf.cmd.economy.nextWork'), value: `<t:${Math.floor((now + WORK_COOLDOWN) / 1000)}:R>`, inline: true }
                 )
                 .setFooter({
-                    text: `Requested by ${interaction.user.tag}`,
+                    text: t(lang, 'wolf.cmd.economy.requestedBy', { user: interaction.user.tag }),
                     iconURL: interaction.user.displayAvatarURL(),
                 });
 
