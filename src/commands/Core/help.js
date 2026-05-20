@@ -12,6 +12,7 @@ import {
 import fs from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
+import { t, pickLanguage } from '../../services/i18n.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -44,7 +45,7 @@ const CATEGORY_ICONS = {
 
 
 
-export async function createInitialHelpMenu(client) {
+export async function createInitialHelpMenu(client, lang = 'es') {
     const commandsPath = path.join(__dirname, "../../commands");
     const categoryDirs = (
         await fs.readdir(commandsPath, { withFileTypes: true })
@@ -55,8 +56,8 @@ export async function createInitialHelpMenu(client) {
 
     const options = [
         {
-            label: "📋 All Commands",
-            description: "View all available commands with pagination",
+            label: t(lang, 'wolf.cmd.help.allCommands'),
+            description: t(lang, 'wolf.cmd.help.allCommandsDesc'),
             value: ALL_COMMANDS_ID,
         },
         ...categoryDirs.map((category) => {
@@ -66,16 +67,16 @@ export async function createInitialHelpMenu(client) {
             const icon = CATEGORY_ICONS[categoryName] || "🔍";
             return {
                 label: `${icon} ${categoryName}`,
-                description: `View commands in the ${categoryName} category`,
+                description: t(lang, 'wolf.cmd.help.categoryDesc', { name: categoryName }),
                 value: category,
             };
         }),
     ];
 
     const botName = client?.user?.username || "Bot";
-    const embed = createEmbed({ 
-        title: `🤖 ${botName} Help Center`,
-        description: "Your all-in-one Discord companion for moderation, economy, fun, and server management.",
+    const embed = createEmbed({
+        title: t(lang, 'wolf.cmd.help.title', { bot: botName }),
+        description: t(lang, 'wolf.cmd.help.description'),
         color: 'primary'
     });
 
@@ -157,42 +158,36 @@ export async function createInitialHelpMenu(client) {
         }
     );
 
-    embed.setFooter({ 
-        text: "Made with ❤️" 
-    });
+    embed.setFooter({ text: t(lang, 'wolf.cmd.help.footer') });
     embed.setTimestamp();
 
     const bugReportButton = new ButtonBuilder()
         .setCustomId(BUG_REPORT_BUTTON_ID)
-        .setLabel("Report Bug")
+        .setLabel(t(lang, 'wolf.cmd.help.reportBug'))
         .setStyle(ButtonStyle.Danger);
 
-    const supportButton = new ButtonBuilder()
-        .setLabel("Support Server")
-        .setURL("https://discord.gg/QnWNz2dKCE")
-        .setStyle(ButtonStyle.Link);
+    const components = [];
+    const buttons = [bugReportButton];
 
-    const touchpointButton = new ButtonBuilder()
-        .setLabel("Learn from Touchpoint")
-        .setURL("https://www.youtube.com/@TouchDisc")
-        .setStyle(ButtonStyle.Link);
+    const supportInvite = (await import('../../config/bot.js')).botConfig.brand?.supportInvite;
+    if (supportInvite) {
+        buttons.push(
+            new ButtonBuilder()
+                .setLabel(t(lang, 'wolf.cmd.help.supportServer'))
+                .setURL(supportInvite)
+                .setStyle(ButtonStyle.Link),
+        );
+    }
 
     const selectRow = createSelectMenu(
         CATEGORY_SELECT_ID,
-        "Select to view the commands",
+        t(lang, 'wolf.cmd.help.selectPlaceholder'),
         options,
     );
 
-    const buttonRow = new ActionRowBuilder().addComponents([
-        bugReportButton,
-        supportButton,
-        touchpointButton,
-    ]);
+    components.push(new ActionRowBuilder().addComponents(buttons), selectRow);
 
-    return {
-        embeds: [embed],
-        components: [buttonRow, selectRow],
-    };
+    return { embeds: [embed], components };
 }
 
 export default {
@@ -201,11 +196,10 @@ export default {
         .setDescription("Displays the help menu with all available commands"),
 
     async execute(interaction, guildConfig, client) {
-        
-        const { MessageFlags } = await import('discord.js');
+        const lang = pickLanguage(guildConfig, interaction.guild);
         await InteractionHelper.safeDefer(interaction);
-        
-        const { embeds, components } = await createInitialHelpMenu(client);
+
+        const { embeds, components } = await createInitialHelpMenu(client, lang);
 
         await InteractionHelper.safeEditReply(interaction, {
             embeds,
@@ -215,8 +209,8 @@ export default {
         setTimeout(async () => {
             try {
                 const closedEmbed = createEmbed({
-                    title: "Help menu closed",
-                    description: "Help menu has been closed, use /help again.",
+                    title: t(lang, 'wolf.cmd.help.closedTitle'),
+                    description: t(lang, 'wolf.cmd.help.closedDesc'),
                     color: "secondary",
                 });
 
@@ -225,7 +219,7 @@ export default {
                     components: [],
                 });
             } catch (error) {
-                
+                /* timeout cleanup, ignore */
             }
         }, HELP_MENU_TIMEOUT_MS);
     },

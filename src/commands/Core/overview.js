@@ -8,21 +8,22 @@ import { getWelcomeConfig, getApplicationSettings } from '../../utils/database.j
 import { errorEmbed } from '../../utils/embeds.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
 import { logger } from '../../utils/logger.js';
+import { t, pickLanguage } from '../../services/i18n.js';
 
-function pill(enabled) {
-    return enabled ? '✅ On' : '❌ Off';
+function pill(enabled, lang) {
+    return enabled ? t(lang, 'wolf.cmd.overview.on') : t(lang, 'wolf.cmd.overview.off');
 }
 
-async function formatChannelMention(guild, id) {
-    if (!id) return '`Not configured`';
+async function formatChannelMention(guild, id, lang) {
+    if (!id) return t(lang, 'wolf.cmd.overview.notConfigured');
     const channel = guild.channels.cache.get(id) ?? await guild.channels.fetch(id).catch(() => null);
-    return channel ? channel.toString() : `⚠️ Missing (${id})`;
+    return channel ? channel.toString() : t(lang, 'wolf.cmd.overview.missing', { id });
 }
 
-function formatRoleMention(guild, id) {
-    if (!id) return '`Not configured`';
+function formatRoleMention(guild, id, lang) {
+    if (!id) return t(lang, 'wolf.cmd.overview.notConfigured');
     const role = guild.roles.cache.get(id);
-    return role ? role.toString() : `⚠️ Missing (${id})`;
+    return role ? role.toString() : t(lang, 'wolf.cmd.overview.missing', { id });
 }
 
 export default {
@@ -33,6 +34,7 @@ export default {
         .setDMPermission(false),
 
     async execute(interaction, config, client) {
+        const lang = pickLanguage(config, interaction.guild);
         try {
             await InteractionHelper.safeDefer(interaction);
 
@@ -53,62 +55,61 @@ export default {
             // ── Channels ──────────────────────────────────────────────────────
             const [auditChannel, lifecycleChannel, transcriptChannel, reportChannel, birthdayChannel] =
                 await Promise.all([
-                    formatChannelMention(interaction.guild, loggingStatus.channelId || guildConfig.logging?.channelId || guildConfig.logChannelId),
-                    formatChannelMention(interaction.guild, guildConfig.ticketLogsChannelId),
-                    formatChannelMention(interaction.guild, guildConfig.ticketTranscriptChannelId),
-                    formatChannelMention(interaction.guild, guildConfig.reportChannelId),
-                    formatChannelMention(interaction.guild, guildConfig.birthdayChannelId),
+                    formatChannelMention(interaction.guild, loggingStatus.channelId || guildConfig.logging?.channelId || guildConfig.logChannelId, lang),
+                    formatChannelMention(interaction.guild, guildConfig.ticketLogsChannelId, lang),
+                    formatChannelMention(interaction.guild, guildConfig.ticketTranscriptChannelId, lang),
+                    formatChannelMention(interaction.guild, guildConfig.reportChannelId, lang),
+                    formatChannelMention(interaction.guild, guildConfig.birthdayChannelId, lang),
                 ]);
 
+            const L = (key) => t(lang, `wolf.cmd.overview.labels.${key}`);
+
             const embed = new EmbedBuilder()
-                .setTitle('🖥️ System Overview')
-                .setDescription(`Read-only snapshot for **${interaction.guild.name}**. Use the relevant command's dashboard to make changes.`)
+                .setTitle(t(lang, 'wolf.cmd.overview.title'))
+                .setDescription(t(lang, 'wolf.cmd.overview.description', { server: interaction.guild.name }))
                 .setColor(getColor('primary'))
                 .addFields(
-                    // ── Core systems ──
                     {
-                        name: '⚙️ Core Systems',
+                        name: t(lang, 'wolf.cmd.overview.coreSystems'),
                         value: [
-                            `🧾 **Audit Logging** — ${pill(Boolean(loggingStatus.enabled))}`,
-                            `📈 **Leveling** — ${pill(Boolean(levelingConfig?.enabled))}`,
-                            `👋 **Welcome** — ${pill(Boolean(welcomeConfig?.enabled))}`,
-                            `👋 **Goodbye** — ${pill(Boolean(welcomeConfig?.goodbyeEnabled))}`,
-                            `🎂 **Birthdays** — ${pill(Boolean(guildConfig.birthdayChannelId))}`,
-                            `📋 **Applications** — ${pill(Boolean(applicationConfig?.enabled))}`,
-                            `✅ **Verification** — ${pill(verificationEnabled)}`,
-                            `🤖 **Auto-Verify** — ${pill(autoVerifyEnabled)}`,
-                            `🎧 **Join to Create** — ${pill(Boolean(joinToCreateConfig?.enabled))}`,
-                            `🛡️ **Auto Role** — ${autoRoleId ? `✅ ${formatRoleMention(interaction.guild, autoRoleId)}` : '❌ Off'}`,
+                            `${L('audit')} — ${pill(Boolean(loggingStatus.enabled), lang)}`,
+                            `${L('leveling')} — ${pill(Boolean(levelingConfig?.enabled), lang)}`,
+                            `${L('welcome')} — ${pill(Boolean(welcomeConfig?.enabled), lang)}`,
+                            `${L('goodbye')} — ${pill(Boolean(welcomeConfig?.goodbyeEnabled), lang)}`,
+                            `${L('birthdays')} — ${pill(Boolean(guildConfig.birthdayChannelId), lang)}`,
+                            `${L('applications')} — ${pill(Boolean(applicationConfig?.enabled), lang)}`,
+                            `${L('verification')} — ${pill(verificationEnabled, lang)}`,
+                            `${L('autoverify')} — ${pill(autoVerifyEnabled, lang)}`,
+                            `${L('jointocreate')} — ${pill(Boolean(joinToCreateConfig?.enabled), lang)}`,
+                            `${L('autorole')} — ${autoRoleId ? `✅ ${formatRoleMention(interaction.guild, autoRoleId, lang)}` : t(lang, 'wolf.cmd.overview.off')}`,
                         ].join('\n'),
                         inline: false,
                     },
-                    // ── Channels ──
                     {
-                        name: '📡 Configured Channels',
+                        name: t(lang, 'wolf.cmd.overview.channels'),
                         value: [
-                            `**Audit Log:** ${auditChannel}`,
-                            `**Ticket Lifecycle:** ${lifecycleChannel}`,
-                            `**Ticket Transcripts:** ${transcriptChannel}`,
-                            `**Reports:** ${reportChannel}`,
-                            `**Birthdays:** ${birthdayChannel}`,
+                            `${L('auditChannel')} ${auditChannel}`,
+                            `${L('ticketLogs')} ${lifecycleChannel}`,
+                            `${L('ticketTranscripts')} ${transcriptChannel}`,
+                            `${L('reports')} ${reportChannel}`,
+                            `${L('birthdayChannel')} ${birthdayChannel}`,
                         ].join('\n'),
                         inline: false,
                     },
-                    // ── Refresh stamp ──
                     {
-                        name: '🕒 Snapshot Taken',
+                        name: t(lang, 'wolf.cmd.overview.snapshot'),
                         value: `<t:${Math.floor(Date.now() / 1000)}:R>`,
                         inline: true,
                     },
                 )
-                .setFooter({ text: 'Read-only — run /logging dashboard to manage audit settings' })
+                .setFooter({ text: t(lang, 'wolf.cmd.overview.footer') })
                 .setTimestamp();
 
             await InteractionHelper.safeEditReply(interaction, { embeds: [embed] });
         } catch (error) {
             logger.error('overview command error:', error);
             await InteractionHelper.safeEditReply(interaction, {
-                embeds: [errorEmbed('Overview Error', 'Failed to load the system overview.')],
+                embeds: [errorEmbed(t(lang, 'wolf.cmd.overview.errorTitle'), t(lang, 'wolf.cmd.overview.errorDesc'))],
             });
         }
     },

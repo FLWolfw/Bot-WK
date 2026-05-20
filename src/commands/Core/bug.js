@@ -1,40 +1,32 @@
-import { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags } from 'discord.js';
+import { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 import { createEmbed } from '../../utils/embeds.js';
-
 import { InteractionHelper } from '../../utils/interactionHelper.js';
+import { t, pickLanguage } from '../../services/i18n.js';
+
 export default {
     data: new SlashCommandBuilder()
-        .setName("bug")
-        .setDescription("Report a bug or issue with the bot"),
+        .setName('bug')
+        .setDescription('Report a bug or issue with the bot'),
 
-    async execute(interaction) {
+    async execute(interaction, config) {
+        const lang = pickLanguage(config, interaction.guild);
+
         const githubButton = new ButtonBuilder()
-            .setLabel('?? Report Bug on GitHub')
+            .setLabel(t(lang, 'wolf.cmd.bug.button'))
             .setStyle(ButtonStyle.Link)
-            .setURL('https://github.com/codebymitch/TitanBot/issues');
+            .setURL('https://github.com/FLWolfw/Wolf-Bot/issues');
 
         const row = new ActionRowBuilder().addComponents(githubButton);
 
-        const bugReportEmbed = createEmbed({
-            title: '?? Bug Report',
-            description: 'Found a bug? Please report it on our GitHub Issues page!\n\n' +
-            '**When reporting a bug, please include:**\n' +
-            '• ?? Detailed description of the issue\n' +
-            '• ?? Steps to reproduce the problem\n' +
-            '• ?? Screenshots if applicable\n' +
-            '• ?? Your bot version and environment\n\n' +
-            'This helps us fix issues faster and more effectively!',
-            color: 'error'
-        })
-            .setTimestamp();
+        const embed = createEmbed({
+            title: t(lang, 'wolf.cmd.bug.title'),
+            description: t(lang, 'wolf.cmd.bug.description'),
+            color: 'error',
+        }).setTimestamp();
 
         await InteractionHelper.safeReply(interaction, {
-            embeds: [bugReportEmbed],
+            embeds: [embed],
             components: [row],
         });
     },
 };
-
-
-
-
