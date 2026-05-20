@@ -5,6 +5,7 @@ import { handleInteractionError } from '../../utils/errorHandler.js';
 import { getColor } from '../../config/bot.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
 import { evaluateMathExpression } from '../../utils/safeMathParser.js';
+import { t, pickLanguage } from '../../services/i18n.js';
 
 // Store calculation context for modal handlers
 const calculationContexts = new Map();
@@ -31,7 +32,8 @@ export default {
                 .setRequired(true),
         ),
 
-    async execute(interaction) {
+    async execute(interaction, config) {
+        const lang = pickLanguage(config, interaction.guild);
         const deferSuccess = await InteractionHelper.safeDefer(interaction);
         if (!deferSuccess) {
             logger.warn(`Calculate interaction defer failed`, {
@@ -52,10 +54,8 @@ try {
                 return InteractionHelper.safeEditReply(interaction, {
                     embeds: [
                         errorEmbed(
-                            "❌ Invalid Expression",
-                            "**Contains unsupported characters.**\n\n" +
-                                "✅ Supported: Numbers, decimals, + - * / ^ %, sin cos tan sqrt abs log exp, pi e, ()\n" +
-                                "❌ Not supported: Brackets, curly braces, and other symbols",
+                            t(lang, 'wolf.cmd.tools.calculate.invalidExprTitle'),
+                            t(lang, 'wolf.cmd.tools.calculate.invalidExprDesc'),
                         ),
                     ],
                 });
@@ -75,10 +75,8 @@ try {
                     return InteractionHelper.safeEditReply(interaction, {
                         embeds: [
                             errorEmbed(
-                                "🔒 Security Alert",
-                                "**Contains blocked code patterns.**\n\n" +
-                                "🚫 **Blocked:** import, require, eval, Function, setTimeout, setInterval, process, fs, document, window, fetch, loops, async/await\n\n" +
-                                "Code-like syntax is not allowed in calculations.",
+                                t(lang, 'wolf.cmd.tools.calculate.securityAlertTitle'),
+                                t(lang, 'wolf.cmd.tools.calculate.securityAlertDesc'),
                             ),
                         ],
                         flags: ["Ephemeral"],
@@ -151,15 +149,16 @@ try {
                         .setStyle(ButtonStyle.Primary),
                     new ButtonBuilder()
                         .setCustomId(`calc_${interaction.id}_history`)
-                        .setLabel("History")
+                        .setLabel(lang === 'es' ? 'Historial' : 'History')
                         .setStyle(ButtonStyle.Secondary),
                 );
 
                 const embed = successEmbed(
-                    "🧮 Calculation Result",
-                    `**Expression:** \`${expression.replace(/`/g, "\`")}\`\n` +
-                        `**Result:** \`${formattedResult}\`\n\n` +
-                        `*Use the buttons below to perform operations with the result.*`,
+                    t(lang, 'wolf.cmd.tools.calculate.title'),
+                    t(lang, 'wolf.cmd.tools.calculate.desc', {
+                        expression: expression.replace(/`/g, "\`"),
+                        result: formattedResult
+                    })
                 );
 
                 await InteractionHelper.safeEditReply(interaction, {
@@ -191,7 +190,7 @@ const BUTTON_TIMEOUT = 300000;
 
                             if (userHistory.length === 0) {
                                 await i.followUp({
-                                    content: "No calculation history found.",
+                                    content: t(lang, 'wolf.cmd.tools.calculate.noHistory'),
                                     flags: ["Ephemeral"],
                                 });
                                 return;
@@ -206,7 +205,7 @@ const BUTTON_TIMEOUT = 300000;
                                 .join("\n\n");
 
                             await i.followUp({
-                                content: `📜 **Your Calculation History**\n\n${historyText}`,
+                                content: `${t(lang, 'wolf.cmd.tools.calculate.historyTitle')}${historyText}`,
                                 flags: ["Ephemeral"],
                             });
                             return;
@@ -242,7 +241,7 @@ const BUTTON_TIMEOUT = 300000;
 
                             await i.showModal({
                                 customId: `calc_modal:${operation}`,
-                                title: `Enter a number to ${operation}`,
+                                title: t(lang, 'wolf.cmd.tools.calculate.modalTitle', { op: operation }),
                                 components: [
                                     {
                                         type: 1,
@@ -250,8 +249,8 @@ const BUTTON_TIMEOUT = 300000;
                                             {
                                                 type: 4,
                                                 customId: `operand:${contextKey}`,
-                                                label: `Number to ${operator} with ${formattedResult}`,
-                                                placeholder: "Enter a number...",
+                                                label: t(lang, 'wolf.cmd.tools.calculate.operandLabel', { operator, result: formattedResult }),
+                                                placeholder: t(lang, 'wolf.cmd.tools.calculate.operandPlaceholder'),
                                                 style: 1,
                                                 required: true,
                                                 maxLength: 50,
@@ -264,7 +263,7 @@ const BUTTON_TIMEOUT = 300000;
                             logger.error("Failed to show modal:", modalError);
                             if (!i.replied && !i.deferred) {
                                 await i.reply({
-                                    content: "Failed to open calculator. Please try again.",
+                                    content: t(lang, 'wolf.cmd.tools.calculate.modalError'),
                                     flags: ["Ephemeral"],
                                 }).catch(console.error);
                             }
@@ -275,7 +274,7 @@ const BUTTON_TIMEOUT = 300000;
                         logger.error("Button interaction error:", error);
                         if (!i.deferred && !i.replied) {
                             await i.followUp({
-                                content: "An error occurred while processing your request.",
+                                content: t(lang, 'wolf.cmd.tools.calculate.generalErr'),
                                 flags: ["Ephemeral"],
                             }).catch(console.error);
                         }
@@ -290,7 +289,7 @@ const BUTTON_TIMEOUT = 300000;
                                     .setCustomId(
                                         `calc_${interaction.id}_expired`,
                                     )
-                                    .setLabel("Calculator Expired")
+                                    .setLabel(t(lang, 'wolf.cmd.tools.calculate.btnExpiredLabel'))
                                     .setStyle(ButtonStyle.Secondary)
                                     .setDisabled(true),
                             );
@@ -298,8 +297,7 @@ const BUTTON_TIMEOUT = 300000;
                         interaction
                             .editReply({
                                 components: [disabledRow],
-                                content:
-                                    "⏱️ This calculator has expired. Use the command again to perform more calculations.",
+                                content: t(lang, 'wolf.cmd.tools.calculate.expired'),
                             })
                             .catch(console.error);
                     } else {
@@ -319,27 +317,24 @@ const BUTTON_TIMEOUT = 300000;
             } catch (error) {
                 logger.error('Calculation error:', error);
 
-                let errorMessage = 'Failed to evaluate the expression. ';
+                let errorMessage = '';
 
                 if (error.message.includes('Unexpected type')) {
-                    errorMessage +=
-                        'The expression contains an unsupported operation or function.';
+                    errorMessage = t(lang, 'wolf.cmd.tools.calculate.errUnsupported');
                 } else if (error.message.includes('Undefined symbol')) {
-                    errorMessage +=
-                        'The expression contains an undefined variable or function.';
+                    errorMessage = t(lang, 'wolf.cmd.tools.calculate.errUndefined');
                 } else if (error.message.includes('Brackets not balanced')) {
-                    errorMessage += 'The expression has unbalanced brackets.';
+                    errorMessage = t(lang, 'wolf.cmd.tools.calculate.errUnbalanced');
                 } else if (
                     error.message.includes('Unexpected operator') ||
                     error.message.includes('Unexpected character')
                 ) {
-                    errorMessage +=
-                        'The expression contains an invalid operator or character.';
+                    errorMessage = t(lang, 'wolf.cmd.tools.calculate.errInvalidOperator');
                 } else {
-                    errorMessage += 'Please check the syntax and try again.';
+                    errorMessage = t(lang, 'wolf.cmd.tools.calculate.errCheckSyntax');
                 }
 
-                const embed = errorEmbed('Calculation Error', errorMessage);
+                const embed = errorEmbed(t(lang, 'wolf.cmd.tools.calculate.evalErrorTitle'), errorMessage);
                 embed.setColor(getColor('error'));
                 await InteractionHelper.safeEditReply(interaction, {
                     embeds: [embed],
@@ -353,8 +348,3 @@ const BUTTON_TIMEOUT = 300000;
         }
     },
 };
-
-
-
-
-

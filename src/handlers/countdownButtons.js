@@ -1,16 +1,18 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 import { successEmbed, errorEmbed } from '../utils/embeds.js';
 import { logger } from '../utils/logger.js';
+import { t, pickLanguage } from '../services/i18n.js';
+import { getGuildConfig } from '../services/guildConfig.js';
 
-function createControlButtons(countdownId, isPaused = false) {
+function createControlButtons(countdownId, isPaused = false, lang = 'en') {
     return new ActionRowBuilder().addComponents(
         new ButtonBuilder()
             .setCustomId(`countdown_pause:${countdownId}`)
-            .setLabel(isPaused ? "▶️ Resume" : "⏸️ Pause")
+            .setLabel(isPaused ? t(lang, 'wolf.cmd.tools.countdown.labelResume') : t(lang, 'wolf.cmd.tools.countdown.labelPause'))
             .setStyle(ButtonStyle.Secondary),
         new ButtonBuilder()
             .setCustomId(`countdown_cancel:${countdownId}`)
-            .setLabel("❌ Cancel")
+            .setLabel(t(lang, 'wolf.cmd.tools.countdown.labelCancel'))
             .setStyle(ButtonStyle.Danger),
     );
 }
@@ -35,6 +37,8 @@ function startCountdown(countdownId, countdownData, activeCountdowns) {
         countdownData.interval = null;
     }
 
+    const lang = countdownData.lang || 'en';
+
     logger.info(`Countdown started: ${countdownData.title} (${countdownData.remainingTime / 1000}s remaining)`);
 
     countdownData.interval = setInterval(async () => {
@@ -50,7 +54,7 @@ function startCountdown(countdownId, countdownData, activeCountdowns) {
 
                 const embed = successEmbed(
                     `⏱️ ${countdownData.title}`,
-                    `Time remaining: **${formatTime(Math.ceil(remaining / 1000))}**`,
+                    t(lang, 'wolf.cmd.tools.countdown.remaining', { time: formatTime(Math.ceil(remaining / 1000)) }),
                 );
 
                 try {
@@ -60,6 +64,7 @@ function startCountdown(countdownId, countdownData, activeCountdowns) {
                             createControlButtons(
                                 countdownId,
                                 countdownData.isPaused,
+                                lang
                             ),
                         ],
                     });
@@ -72,8 +77,8 @@ function startCountdown(countdownId, countdownData, activeCountdowns) {
                 clearInterval(countdownData.interval);
 
                 const finishedEmbed = successEmbed(
-                    `⏱️ ${countdownData.title} (Finished!)`,
-                    "⏰ Time's up!",
+                    `⏱️ ${countdownData.title} (${t(lang, 'wolf.cmd.tools.countdown.statusFinished')})`,
+                    t(lang, 'wolf.cmd.tools.countdown.timeUp'),
                 );
 
                 await countdownData.message.edit({
@@ -105,16 +110,29 @@ async function countdownButtonHandler(interaction, client, args) {
         const countdownId = args[1];
 
         const countdownData = activeCountdowns.get(countdownId);
+
+        let lang = 'en';
+        if (countdownData && countdownData.lang) {
+            lang = countdownData.lang;
+        } else {
+            try {
+                const config = await getGuildConfig(client, interaction.guildId);
+                lang = pickLanguage(config, interaction.guild);
+            } catch (err) {
+                logger.error('Failed to get guild config or language in countdownButtonHandler:', err);
+            }
+        }
+
         if (!countdownData) {
             return await interaction.reply({
-                content: "This countdown has expired or was cancelled.",
+                content: t(lang, 'wolf.cmd.tools.countdown.expired'),
                 flags: ["Ephemeral"],
             });
         }
 
-        if (!interaction.member.permissions.has("MANAGE_MESSAGES")) {
+        if (!interaction.member.permissions.has("ManageMessages")) {
             return await interaction.reply({
-                content: 'You need the "Manage Messages" permission to control countdowns.',
+                content: t(lang, 'wolf.cmd.tools.countdown.noPerms'),
                 flags: ["Ephemeral"],
             });
         }
@@ -129,11 +147,11 @@ async function countdownButtonHandler(interaction, client, args) {
                     const currentEmbed = countdownData.message.embeds[0];
                     await countdownData.message.edit({
                         embeds: [currentEmbed],
-                        components: [createControlButtons(countdownId, false)],
+                        components: [createControlButtons(countdownId, false, lang)],
                     });
 
                     await interaction.reply({
-                        content: "▶️ Countdown resumed!",
+                        content: t(lang, 'wolf.cmd.tools.countdown.resumed'),
                         flags: ["Ephemeral"],
                     });
                 } else {
@@ -144,11 +162,11 @@ async function countdownButtonHandler(interaction, client, args) {
                     const currentEmbed = countdownData.message.embeds[0];
                     await countdownData.message.edit({
                         embeds: [currentEmbed],
-                        components: [createControlButtons(countdownId, true)],
+                        components: [createControlButtons(countdownId, true, lang)],
                     });
 
                     await interaction.reply({
-                        content: "⏸️ Countdown paused!",
+                        content: t(lang, 'wolf.cmd.tools.countdown.paused'),
                         flags: ["Ephemeral"],
                     });
                 }
@@ -158,8 +176,8 @@ async function countdownButtonHandler(interaction, client, args) {
                 clearInterval(countdownData.interval);
 
                 const embed = successEmbed(
-                    `⏱️ ${countdownData.title} (Cancelled)`,
-                    "The countdown was cancelled.",
+                    `⏱️ ${countdownData.title} (${t(lang, 'wolf.cmd.tools.countdown.statusCancelled')})`,
+                    t(lang, 'wolf.cmd.tools.countdown.wasCancelled'),
                 );
 
                 await countdownData.message.edit({
@@ -170,7 +188,7 @@ async function countdownButtonHandler(interaction, client, args) {
                 cleanupCountdown(countdownId, activeCountdowns);
 
                 await interaction.reply({
-                    content: "❌ Countdown cancelled!",
+                    content: t(lang, 'wolf.cmd.tools.countdown.cancelled'),
                     flags: ["Ephemeral"],
                 });
                 break;
@@ -179,8 +197,13 @@ async function countdownButtonHandler(interaction, client, args) {
         logger.error('Countdown button handler error:', error);
         try {
             if (!interaction.replied && !interaction.deferred) {
+                let errLang = 'en';
+                try {
+                    const config = await getGuildConfig(client, interaction.guildId);
+                    errLang = pickLanguage(config, interaction.guild);
+                } catch (e) {}
                 await interaction.reply({
-                    embeds: [errorEmbed('Error', 'An error occurred controlling the countdown.')],
+                    embeds: [errorEmbed('Error', t(errLang, 'wolf.cmd.tools.countdown.errControl'))],
                     flags: ['Ephemeral']
                 });
             }

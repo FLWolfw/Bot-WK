@@ -4,6 +4,7 @@ import { logger } from '../../utils/logger.js';
 import { handleInteractionError } from '../../utils/errorHandler.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
 import { createControlButtons, formatTime, startCountdown } from '../../handlers/countdownButtons.js';
+import { t, pickLanguage } from '../../services/i18n.js';
 
 const activeCountdowns = new Map();
 
@@ -36,7 +37,8 @@ export default {
                 .setRequired(false),
         ),
 
-    async execute(interaction) {
+    async execute(interaction, config) {
+        const lang = pickLanguage(config, interaction.guild);
         const deferSuccess = await InteractionHelper.safeDefer(interaction);
         if (!deferSuccess) {
             logger.warn(`Countdown interaction defer failed`, {
@@ -55,21 +57,21 @@ export default {
             const totalSeconds = minutes * 60 + seconds;
 
             if (totalSeconds <= 0) {
-                throw new Error("Please specify a duration of at least 1 second.");
+                throw new Error(t(lang, 'wolf.cmd.tools.countdown.invalidDuration'));
             }
 
             if (totalSeconds > 86400) {
-                throw new Error("Countdown cannot be longer than 24 hours.");
+                throw new Error(t(lang, 'wolf.cmd.tools.countdown.tooLong'));
             }
 
             const endTime = Date.now() + totalSeconds * 1000;
             const countdownId = `${interaction.channelId}-${Date.now()}`;
 
-            const row = createControlButtons(countdownId);
+            const row = createControlButtons(countdownId, false, lang);
 
             const initialEmbed = successEmbed(
-                `⏱️ ${title}`,
-                `Time remaining: **${formatTime(totalSeconds)}**`,
+                `⏱️ ${title === 'Countdown Timer' ? t(lang, 'wolf.cmd.tools.countdown.titleDefault') : title}`,
+                t(lang, 'wolf.cmd.tools.countdown.remaining', { time: formatTime(totalSeconds) }),
             );
 
             const message = await interaction.channel.send({
@@ -85,13 +87,14 @@ export default {
                 title,
                 lastUpdate: Date.now(),
                 interval: null,
+                lang,
             };
 
             activeCountdowns.set(countdownId, countdownData);
             startCountdown(countdownId, countdownData, activeCountdowns);
 
             await InteractionHelper.safeEditReply(interaction, {
-                content: "✅ Countdown started!",
+                content: t(lang, 'wolf.cmd.tools.countdown.started'),
                 flags: MessageFlags.Ephemeral,
             });
         } catch (error) {

@@ -4,6 +4,8 @@ import { createEmbed, errorEmbed, successEmbed, infoEmbed, warningEmbed } from '
 import { logger } from '../../utils/logger.js';
 import { handleInteractionError } from '../../utils/errorHandler.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
+import { t, pickLanguage } from '../../services/i18n.js';
+
 export default {
     data: new SlashCommandBuilder()
         .setName('generatepassword')
@@ -27,7 +29,8 @@ export default {
                 .setDescription('Include symbols (!@#$%^&*)')
                 .setRequired(false)),
 
-    async execute(interaction) {
+    async execute(interaction, config) {
+        const lang = pickLanguage(config, interaction.guild);
         const deferSuccess = await InteractionHelper.safeDefer(interaction, {
             flags: MessageFlags.Ephemeral
         });
@@ -43,16 +46,19 @@ export default {
 
         try {
             const length = interaction.options.getInteger('length') || 16;
-                const includeUppercase = interaction.options.getBoolean('uppercase') ?? true;
-                const includeNumbers = interaction.options.getBoolean('numbers') ?? true;
-                const includeSymbols = interaction.options.getBoolean('symbols') ?? true;
-                
-                if (length < 8 || length > 50) {
-                    await InteractionHelper.safeEditReply(interaction, {
-                        embeds: [errorEmbed('❌ Invalid Length', 'Password must be 8-50 characters. You provided: ' + length)],
-                    });
-                    return;
-                }
+            const includeUppercase = interaction.options.getBoolean('uppercase') ?? true;
+            const includeNumbers = interaction.options.getBoolean('numbers') ?? true;
+            const includeSymbols = interaction.options.getBoolean('symbols') ?? true;
+            
+            if (length < 8 || length > 50) {
+                await InteractionHelper.safeEditReply(interaction, {
+                    embeds: [errorEmbed(
+                        t(lang, 'wolf.cmd.tools.generatepassword.invalidLength'), 
+                        t(lang, 'wolf.cmd.tools.generatepassword.invalidLengthDesc', { length })
+                    )],
+                });
+                return;
+            }
             
             const lowercase = 'abcdefghijklmnopqrstuvwxyz';
             const uppercase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
@@ -91,9 +97,9 @@ export default {
                 password = password.substring(0, randomIndex) + randomSymbol + password.substring(randomIndex + 1);
             }
             
-            let strength = 'Weak';
+            let strength = t(lang, 'wolf.cmd.tools.generatepassword.strengthWeak');
             let strengthEmoji = '🔴';
-let strengthColor = getColor('error');
+            let strengthColor = getColor('error');
             
             const hasLower = /[a-z]/.test(password);
             const hasUpper = /[A-Z]/.test(password);
@@ -116,29 +122,39 @@ let strengthColor = getColor('error');
             if (hasSymbol) score *= 1.3;
             
             if (score > 80) {
-                strength = 'Very Strong';
+                strength = t(lang, 'wolf.cmd.tools.generatepassword.strengthVeryStrong');
                 strengthEmoji = '🟢';
-strengthColor = getColor('success');
+                strengthColor = getColor('success');
             } else if (score > 60) {
-                strength = 'Strong';
+                strength = t(lang, 'wolf.cmd.tools.generatepassword.strengthStrong');
                 strengthEmoji = '🟢';
-strengthColor = getColor('success');
+                strengthColor = getColor('success');
             } else if (score > 40) {
-                strength = 'Good';
+                strength = t(lang, 'wolf.cmd.tools.generatepassword.strengthGood');
                 strengthEmoji = '🟡';
-strengthColor = getColor('warning');
+                strengthColor = getColor('warning');
             } else if (score > 20) {
-                strength = 'Weak';
+                strength = t(lang, 'wolf.cmd.tools.generatepassword.strengthWeak');
                 strengthEmoji = '🟠';
-strengthColor = getColor('warning');
+                strengthColor = getColor('warning');
             }
             
+            const containsParts = [];
+            if (hasLower) containsParts.push(t(lang, 'wolf.cmd.tools.generatepassword.charLower'));
+            if (hasUpper) containsParts.push(t(lang, 'wolf.cmd.tools.generatepassword.charUpper'));
+            if (hasNumber) containsParts.push(t(lang, 'wolf.cmd.tools.generatepassword.charNumber'));
+            if (hasSymbol) containsParts.push(t(lang, 'wolf.cmd.tools.generatepassword.charSymbol'));
+            const contains = containsParts.join(', ');
+
             const embed = successEmbed(
-                '🔑 Generated Password',
-                `**Password:** ||\`${password}\`||\n` +
-                `**Length:** ${password.length} characters\n` +
-                `**Strength:** ${strengthEmoji} ${strength}\n` +
-                `**Contains:** ${hasLower ? 'Lowercase' : ''}${hasUpper ? ', Uppercase' : ''}${hasNumber ? ', Numbers' : ''}${hasSymbol ? ', Symbols' : ''}`
+                t(lang, 'wolf.cmd.tools.generatepassword.title'),
+                t(lang, 'wolf.cmd.tools.generatepassword.desc', {
+                    password,
+                    length: password.length,
+                    emoji: strengthEmoji,
+                    strength,
+                    contains
+                })
             ).setColor(strengthColor);
             
             await InteractionHelper.safeEditReply(interaction, { 

@@ -22,6 +22,7 @@ import { successEmbed, errorEmbed } from '../../utils/embeds.js';
 import { logger } from '../../utils/logger.js';
 import { TitanBotError, ErrorTypes } from '../../utils/errorHandler.js';
 import { getColor } from '../../config/bot.js';
+import { t, pickLanguage } from '../../services/i18n.js';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -62,6 +63,23 @@ function isValidHex(str) {
 /**
  * Builds the live preview embed from current state.
  */
+function getPresetLabel(value, lang) {
+    switch (value) {
+        case '#336699': return t(lang, 'wolf.cmd.tools.embedbuilder.colorPresets.primary');
+        case '#57F287': return t(lang, 'wolf.cmd.tools.embedbuilder.colorPresets.success');
+        case '#ED4245': return t(lang, 'wolf.cmd.tools.embedbuilder.colorPresets.error');
+        case '#FEE75C': return t(lang, 'wolf.cmd.tools.embedbuilder.colorPresets.warning');
+        case '#3498DB': return t(lang, 'wolf.cmd.tools.embedbuilder.colorPresets.info');
+        case '#5865F2': return t(lang, 'wolf.cmd.tools.embedbuilder.colorPresets.blurple');
+        case '#EB459E': return t(lang, 'wolf.cmd.tools.embedbuilder.colorPresets.fuchsia');
+        case '#F1C40F': return t(lang, 'wolf.cmd.tools.embedbuilder.colorPresets.gold');
+        case '#FFFFFF': return t(lang, 'wolf.cmd.tools.embedbuilder.colorPresets.white');
+        case '#202225': return t(lang, 'wolf.cmd.tools.embedbuilder.colorPresets.dark');
+        case '__custom__': return t(lang, 'wolf.cmd.tools.embedbuilder.colorPresets.custom');
+        default: return value;
+    }
+}
+
 function buildPreviewEmbed(state) {
     const embed = new EmbedBuilder();
 
@@ -100,7 +118,7 @@ function buildPreviewEmbed(state) {
         state.fields.length === 0 &&
         !state.author?.name
     ) {
-        embed.setDescription('*(Empty — use the menu below to add content)*');
+        embed.setDescription(t(state.lang, 'wolf.cmd.tools.embedbuilder.emptyPreview'));
     }
 
     return embed;
@@ -114,22 +132,22 @@ function buildDashboardEmbed(state) {
         str.length > n ? str.substring(0, n) + '…' : str;
 
     const lines = [
-        `**Title** › ${state.title ? `\`${trunc(state.title, 40)}\`` : '`Not set`'}`,
-        `**Description** › ${state.description ? `${state.description.length} character(s)` : '`Not set`'}`,
-        `**Color** › ${state.color ? `\`${state.color}\`` : '`Default`'}`,
-        `**Author** › ${state.author?.name ? `\`${trunc(state.author.name, 30)}\`` : '`Not set`'}`,
-        `**Footer** › ${state.footer?.text ? `\`${trunc(state.footer.text, 30)}\`` : '`Not set`'}`,
-        `**Thumbnail** › ${state.thumbnail ? '✅ Set' : '`Not set`'}`,
-        `**Image** › ${state.image ? '✅ Set' : '`Not set`'}`,
-        `**Timestamp** › ${state.timestamp ? '✅ Enabled' : '`Disabled`'}`,
-        `**Fields** › ${state.fields.length} / ${MAX_FIELDS}`,
+        `**${t(state.lang, 'wolf.cmd.tools.embedbuilder.statusTitle')}** › ${state.title ? `\`${trunc(state.title, 40)}\`` : `\`${t(state.lang, 'wolf.cmd.tools.embedbuilder.valNotSet')}\``}`,
+        `**${t(state.lang, 'wolf.cmd.tools.embedbuilder.statusDesc')}** › ${state.description ? `${t(state.lang, 'wolf.cmd.tools.embedbuilder.valCharCount', { count: state.description.length })}` : `\`${t(state.lang, 'wolf.cmd.tools.embedbuilder.valNotSet')}\``}`,
+        `**${t(state.lang, 'wolf.cmd.tools.embedbuilder.statusColor')}** › ${state.color ? `\`${state.color}\`` : `\`${t(state.lang, 'wolf.cmd.tools.embedbuilder.valDefault')}\``}`,
+        `**${t(state.lang, 'wolf.cmd.tools.embedbuilder.statusAuthor')}** › ${state.author?.name ? `\`${trunc(state.author.name, 30)}\`` : `\`${t(state.lang, 'wolf.cmd.tools.embedbuilder.valNotSet')}\``}`,
+        `**${t(state.lang, 'wolf.cmd.tools.embedbuilder.statusFooter')}** › ${state.footer?.text ? `\`${trunc(state.footer.text, 30)}\`` : `\`${t(state.lang, 'wolf.cmd.tools.embedbuilder.valNotSet')}\``}`,
+        `**${t(state.lang, 'wolf.cmd.tools.embedbuilder.statusThumbnail')}** › ${state.thumbnail ? t(state.lang, 'wolf.cmd.tools.embedbuilder.valSet') : `\`${t(state.lang, 'wolf.cmd.tools.embedbuilder.valNotSet')}\``}`,
+        `**${t(state.lang, 'wolf.cmd.tools.embedbuilder.statusImage')}** › ${state.image ? t(state.lang, 'wolf.cmd.tools.embedbuilder.valSet') : `\`${t(state.lang, 'wolf.cmd.tools.embedbuilder.valNotSet')}\``}`,
+        `**${t(state.lang, 'wolf.cmd.tools.embedbuilder.statusTimestamp')}** › ${state.timestamp ? t(state.lang, 'wolf.cmd.tools.embedbuilder.valEnabled') : `\`${t(state.lang, 'wolf.cmd.tools.embedbuilder.valDisabled')}\``}`,
+        `**${t(state.lang, 'wolf.cmd.tools.embedbuilder.statusFields')}** › ${state.fields.length} / ${MAX_FIELDS}`,
     ];
 
     return new EmbedBuilder()
-        .setTitle('🛠️ Embed Builder — Control Panel')
+        .setTitle(t(state.lang, 'wolf.cmd.tools.embedbuilder.dashboardTitle'))
         .setDescription(lines.join('\n'))
         .setColor(getColor('info'))
-        .setFooter({ text: 'The preview above updates live · Closes after 5 min of inactivity' });
+        .setFooter({ text: t(state.lang, 'wolf.cmd.tools.embedbuilder.dashboardFooter') });
 }
 
 /**
@@ -138,36 +156,36 @@ function buildDashboardEmbed(state) {
 function buildMainMenu(state) {
     const select = new StringSelectMenuBuilder()
         .setCustomId('eb_menu')
-        .setPlaceholder('Choose an action...')
+        .setPlaceholder(t(state.lang, 'wolf.cmd.tools.embedbuilder.mainMenuPlaceholder'))
         .addOptions(
             new StringSelectMenuOptionBuilder()
-                .setLabel('Edit Content')
-                .setDescription('Set the title and description')
+                .setLabel(t(state.lang, 'wolf.cmd.tools.embedbuilder.optEditContent'))
+                .setDescription(t(state.lang, 'wolf.cmd.tools.embedbuilder.optEditContentDesc'))
                 .setValue('edit_content')
                 .setEmoji('✏️'),
             new StringSelectMenuOptionBuilder()
-                .setLabel('Set Color')
-                .setDescription('Pick a preset or enter a custom hex code')
+                .setLabel(t(state.lang, 'wolf.cmd.tools.embedbuilder.optSetColor'))
+                .setDescription(t(state.lang, 'wolf.cmd.tools.embedbuilder.optSetColorDesc'))
                 .setValue('set_color')
                 .setEmoji('🎨'),
             new StringSelectMenuOptionBuilder()
-                .setLabel('Set Author')
-                .setDescription('Configure the author block at the top of the embed')
+                .setLabel(t(state.lang, 'wolf.cmd.tools.embedbuilder.optSetAuthor'))
+                .setDescription(t(state.lang, 'wolf.cmd.tools.embedbuilder.optSetAuthorDesc'))
                 .setValue('set_author')
                 .setEmoji('👤'),
             new StringSelectMenuOptionBuilder()
-                .setLabel('Set Footer')
-                .setDescription('Configure the footer text and icon')
+                .setLabel(t(state.lang, 'wolf.cmd.tools.embedbuilder.optSetFooter'))
+                .setDescription(t(state.lang, 'wolf.cmd.tools.embedbuilder.optSetFooterDesc'))
                 .setValue('set_footer')
                 .setEmoji('📄'),
             new StringSelectMenuOptionBuilder()
-                .setLabel('Set Images')
-                .setDescription('Set the thumbnail or large banner image')
+                .setLabel(t(state.lang, 'wolf.cmd.tools.embedbuilder.optSetImages'))
+                .setDescription(t(state.lang, 'wolf.cmd.tools.embedbuilder.optSetImagesDesc'))
                 .setValue('set_images')
                 .setEmoji('🖼️'),
             new StringSelectMenuOptionBuilder()
-                .setLabel(`Add Field  (${state.fields.length}/${MAX_FIELDS})`)
-                .setDescription('Add a new inline or block field')
+                .setLabel(t(state.lang, 'wolf.cmd.tools.embedbuilder.optAddField', { count: state.fields.length, max: MAX_FIELDS }))
+                .setDescription(t(state.lang, 'wolf.cmd.tools.embedbuilder.optAddFieldDesc'))
                 .setValue('add_field')
                 .setEmoji('➕'),
         );
@@ -175,13 +193,13 @@ function buildMainMenu(state) {
     if (state.fields.length > 0) {
         select.addOptions(
             new StringSelectMenuOptionBuilder()
-                .setLabel('Edit Field')
-                .setDescription('Modify the name, value, or inline setting of a field')
+                .setLabel(t(state.lang, 'wolf.cmd.tools.embedbuilder.optEditField'))
+                .setDescription(t(state.lang, 'wolf.cmd.tools.embedbuilder.optEditFieldDesc'))
                 .setValue('edit_field')
                 .setEmoji('📝'),
             new StringSelectMenuOptionBuilder()
-                .setLabel('Remove Field')
-                .setDescription('Delete a field from the embed')
+                .setLabel(t(state.lang, 'wolf.cmd.tools.embedbuilder.optRemoveField'))
+                .setDescription(t(state.lang, 'wolf.cmd.tools.embedbuilder.optRemoveFieldDesc'))
                 .setValue('remove_field')
                 .setEmoji('➖'),
         );
@@ -189,8 +207,8 @@ function buildMainMenu(state) {
         if (state.fields.length >= 2) {
             select.addOptions(
                 new StringSelectMenuOptionBuilder()
-                    .setLabel('Reorder Fields')
-                    .setDescription('Move a field up or down in the list')
+                    .setLabel(t(state.lang, 'wolf.cmd.tools.embedbuilder.optReorderFields'))
+                    .setDescription(t(state.lang, 'wolf.cmd.tools.embedbuilder.optReorderFieldsDesc'))
                     .setValue('reorder_fields')
                     .setEmoji('↕️'),
             );
@@ -199,23 +217,23 @@ function buildMainMenu(state) {
 
     select.addOptions(
         new StringSelectMenuOptionBuilder()
-            .setLabel(state.timestamp ? 'Disable Timestamp' : 'Enable Timestamp')
-            .setDescription('Toggle the automatic timestamp in the footer')
+            .setLabel(state.timestamp ? t(state.lang, 'wolf.cmd.tools.embedbuilder.optToggleTimestampDisable') : t(state.lang, 'wolf.cmd.tools.embedbuilder.optToggleTimestampEnable'))
+            .setDescription(t(state.lang, 'wolf.cmd.tools.embedbuilder.optToggleTimestampDesc'))
             .setValue('toggle_timestamp')
             .setEmoji('🕐'),
         new StringSelectMenuOptionBuilder()
-            .setLabel('Post Embed')
-            .setDescription('Send the finished embed to a channel')
+            .setLabel(t(state.lang, 'wolf.cmd.tools.embedbuilder.optPostEmbed'))
+            .setDescription(t(state.lang, 'wolf.cmd.tools.embedbuilder.optPostEmbedDesc'))
             .setValue('post_embed')
             .setEmoji('📤'),
         new StringSelectMenuOptionBuilder()
-            .setLabel('JSON / Raw Data')
-            .setDescription('View the raw JSON for this embed')
+            .setLabel(t(state.lang, 'wolf.cmd.tools.embedbuilder.optJsonExport'))
+            .setDescription(t(state.lang, 'wolf.cmd.tools.embedbuilder.optJsonExportDesc'))
             .setValue('json_export')
             .setEmoji('📋'),
         new StringSelectMenuOptionBuilder()
-            .setLabel('Reset Everything')
-            .setDescription('Clear all fields and start over')
+            .setLabel(t(state.lang, 'wolf.cmd.tools.embedbuilder.optResetAll'))
+            .setDescription(t(state.lang, 'wolf.cmd.tools.embedbuilder.optResetAllDesc'))
             .setValue('reset_all')
             .setEmoji('🗑️'),
     );
@@ -238,27 +256,27 @@ async function refreshDashboard(interaction, state) {
 async function handleEditContent(selectInteraction, rootInteraction, state) {
     const modal = new ModalBuilder()
         .setCustomId('eb_content')
-        .setTitle('Edit Content')
+        .setTitle(t(state.lang, 'wolf.cmd.tools.embedbuilder.modalContentTitle'))
         .addComponents(
             new ActionRowBuilder().addComponents(
                 new TextInputBuilder()
                     .setCustomId('eb_title')
-                    .setLabel('Title (max 256 characters)')
+                    .setLabel(t(state.lang, 'wolf.cmd.tools.embedbuilder.labelTitle'))
                     .setStyle(TextInputStyle.Short)
                     .setValue(state.title || '')
                     .setMaxLength(256)
                     .setRequired(false)
-                    .setPlaceholder('My Embed Title'),
+                    .setPlaceholder(t(state.lang, 'wolf.cmd.tools.embedbuilder.placeholderTitle')),
             ),
             new ActionRowBuilder().addComponents(
                 new TextInputBuilder()
                     .setCustomId('eb_description')
-                    .setLabel('Description (max 4000 characters)')
+                    .setLabel(t(state.lang, 'wolf.cmd.tools.embedbuilder.labelDesc'))
                     .setStyle(TextInputStyle.Paragraph)
                     .setValue(state.description ? state.description.substring(0, 4000) : '')
                     .setMaxLength(4000)
                     .setRequired(false)
-                    .setPlaceholder('Write your embed description here...'),
+                    .setPlaceholder(t(state.lang, 'wolf.cmd.tools.embedbuilder.placeholderDesc')),
             ),
         );
 
@@ -287,24 +305,22 @@ async function handleSetColor(selectInteraction, rootInteraction, state) {
 
     const colorSelect = new StringSelectMenuBuilder()
         .setCustomId('eb_color_pick')
-        .setPlaceholder('Choose a color...')
+        .setPlaceholder(t(state.lang, 'wolf.cmd.tools.embedbuilder.colorPickPlaceholder'))
         .addOptions(
             COLOR_PRESETS.map(c =>
                 new StringSelectMenuOptionBuilder()
-                    .setLabel(c.label)
+                    .setLabel(getPresetLabel(c.value, state.lang))
                     .setValue(c.value)
                     .setEmoji(c.emoji)
-                    .setDescription(c.value !== '__custom__' ? c.value : 'Enter your own #RRGGBB value'),
+                    .setDescription(c.value !== '__custom__' ? c.value : (state.lang === 'es' ? 'Ingresa tu propio valor #RRGGBB' : 'Enter your own #RRGGBB value')),
             ),
         );
 
     await selectInteraction.followUp({
         embeds: [
             new EmbedBuilder()
-                .setTitle('🎨 Set Color')
-                .setDescription(
-                    'Select a preset color or choose **Custom Hex** to enter your own `#RRGGBB` value.',
-                )
+                .setTitle(t(state.lang, 'wolf.cmd.tools.embedbuilder.colorPickTitle'))
+                .setDescription(t(state.lang, 'wolf.cmd.tools.embedbuilder.colorPickDesc'))
                 .setColor(getColor('info')),
         ],
         components: [new ActionRowBuilder().addComponents(colorSelect)],
@@ -325,12 +341,12 @@ async function handleSetColor(selectInteraction, rootInteraction, state) {
         if (picked === '__custom__') {
             const hexModal = new ModalBuilder()
                 .setCustomId('eb_custom_hex')
-                .setTitle('Custom Color')
+                .setTitle(t(state.lang, 'wolf.cmd.tools.embedbuilder.modalCustomHexTitle'))
                 .addComponents(
                     new ActionRowBuilder().addComponents(
                         new TextInputBuilder()
                             .setCustomId('hex_value')
-                            .setLabel('Hex Color Code')
+                            .setLabel(t(state.lang, 'wolf.cmd.tools.embedbuilder.labelHexValue'))
                             .setStyle(TextInputStyle.Short)
                             .setPlaceholder('#5865F2')
                             .setMaxLength(7)
@@ -356,8 +372,8 @@ async function handleSetColor(selectInteraction, rootInteraction, state) {
                 await hexSubmit.reply({
                     embeds: [
                         errorEmbed(
-                            'Invalid Hex',
-                            `\`${hex}\` is not a valid hex color. Use the format \`#RRGGBB\` (e.g. \`#5865F2\`).`,
+                            t(state.lang, 'wolf.cmd.tools.embedbuilder.errInvalidHexTitle'),
+                            t(state.lang, 'wolf.cmd.tools.embedbuilder.errInvalidHexDesc', { hex }),
                         ),
                     ],
                     flags: MessageFlags.Ephemeral,
@@ -379,22 +395,22 @@ async function handleSetColor(selectInteraction, rootInteraction, state) {
 async function handleSetAuthor(selectInteraction, rootInteraction, state) {
     const modal = new ModalBuilder()
         .setCustomId('eb_author')
-        .setTitle('Set Author')
+        .setTitle(t(state.lang, 'wolf.cmd.tools.embedbuilder.modalAuthorTitle'))
         .addComponents(
             new ActionRowBuilder().addComponents(
                 new TextInputBuilder()
                     .setCustomId('author_name')
-                    .setLabel('Author Name (leave blank to remove)')
+                    .setLabel(t(state.lang, 'wolf.cmd.tools.embedbuilder.labelAuthorName'))
                     .setStyle(TextInputStyle.Short)
                     .setValue(state.author?.name || '')
                     .setMaxLength(256)
                     .setRequired(false)
-                    .setPlaceholder('Your Name'),
+                    .setPlaceholder(t(state.lang, 'wolf.cmd.tools.embedbuilder.placeholderAuthorName')),
             ),
             new ActionRowBuilder().addComponents(
                 new TextInputBuilder()
                     .setCustomId('author_icon')
-                    .setLabel('Author Icon URL (optional)')
+                    .setLabel(t(state.lang, 'wolf.cmd.tools.embedbuilder.labelAuthorIcon'))
                     .setStyle(TextInputStyle.Short)
                     .setValue(state.author?.iconUrl || '')
                     .setRequired(false)
@@ -403,7 +419,7 @@ async function handleSetAuthor(selectInteraction, rootInteraction, state) {
             new ActionRowBuilder().addComponents(
                 new TextInputBuilder()
                     .setCustomId('author_url')
-                    .setLabel('Author Link URL (optional)')
+                    .setLabel(t(state.lang, 'wolf.cmd.tools.embedbuilder.labelAuthorUrl'))
                     .setStyle(TextInputStyle.Short)
                     .setValue(state.author?.url || '')
                     .setRequired(false)
@@ -428,14 +444,14 @@ async function handleSetAuthor(selectInteraction, rootInteraction, state) {
 
     if (iconUrl && !isValidUrl(iconUrl)) {
         await submitted.reply({
-            embeds: [errorEmbed('Invalid URL', 'Author icon URL must be a valid `https://` URL.')],
+            embeds: [errorEmbed(t(state.lang, 'wolf.cmd.tools.embedbuilder.errInvalidUrlTitle'), t(state.lang, 'wolf.cmd.tools.embedbuilder.errInvalidAuthorIcon'))],
             flags: MessageFlags.Ephemeral,
         });
         return;
     }
     if (url && !isValidUrl(url)) {
         await submitted.reply({
-            embeds: [errorEmbed('Invalid URL', 'Author link URL must be a valid `https://` URL.')],
+            embeds: [errorEmbed(t(state.lang, 'wolf.cmd.tools.embedbuilder.errInvalidUrlTitle'), t(state.lang, 'wolf.cmd.tools.embedbuilder.errInvalidAuthorLink'))],
             flags: MessageFlags.Ephemeral,
         });
         return;
@@ -450,22 +466,22 @@ async function handleSetAuthor(selectInteraction, rootInteraction, state) {
 async function handleSetFooter(selectInteraction, rootInteraction, state) {
     const modal = new ModalBuilder()
         .setCustomId('eb_footer')
-        .setTitle('Set Footer')
+        .setTitle(t(state.lang, 'wolf.cmd.tools.embedbuilder.modalFooterTitle'))
         .addComponents(
             new ActionRowBuilder().addComponents(
                 new TextInputBuilder()
                     .setCustomId('footer_text')
-                    .setLabel('Footer Text (leave blank to remove)')
+                    .setLabel(t(state.lang, 'wolf.cmd.tools.embedbuilder.labelFooterText'))
                     .setStyle(TextInputStyle.Short)
                     .setValue(state.footer?.text || '')
                     .setMaxLength(2048)
                     .setRequired(false)
-                    .setPlaceholder('Built with TitanBot'),
+                    .setPlaceholder(t(state.lang, 'wolf.cmd.tools.embedbuilder.placeholderFooterText')),
             ),
             new ActionRowBuilder().addComponents(
                 new TextInputBuilder()
                     .setCustomId('footer_icon')
-                    .setLabel('Footer Icon URL (optional)')
+                    .setLabel(t(state.lang, 'wolf.cmd.tools.embedbuilder.labelFooterIcon'))
                     .setStyle(TextInputStyle.Short)
                     .setValue(state.footer?.iconUrl || '')
                     .setRequired(false)
@@ -489,7 +505,7 @@ async function handleSetFooter(selectInteraction, rootInteraction, state) {
 
     if (iconUrl && !isValidUrl(iconUrl)) {
         await submitted.reply({
-            embeds: [errorEmbed('Invalid URL', 'Footer icon URL must be a valid `https://` URL.')],
+            embeds: [errorEmbed(t(state.lang, 'wolf.cmd.tools.embedbuilder.errInvalidUrlTitle'), t(state.lang, 'wolf.cmd.tools.embedbuilder.errInvalidFooterIcon'))],
             flags: MessageFlags.Ephemeral,
         });
         return;
@@ -506,26 +522,26 @@ async function handleSetImages(selectInteraction, rootInteraction, state) {
 
     const imageSelect = new StringSelectMenuBuilder()
         .setCustomId('eb_image_pick')
-        .setPlaceholder('What would you like to change?')
+        .setPlaceholder(t(state.lang, 'wolf.cmd.tools.embedbuilder.colorPickPlaceholder'))
         .addOptions(
             new StringSelectMenuOptionBuilder()
-                .setLabel('Set Thumbnail')
-                .setDescription('Small image displayed in the top-right corner')
+                .setLabel(t(state.lang, 'wolf.cmd.tools.embedbuilder.optSetThumbnail'))
+                .setDescription(t(state.lang, 'wolf.cmd.tools.embedbuilder.optSetThumbnailDesc'))
                 .setValue('set_thumbnail')
                 .setEmoji('🖼️'),
             new StringSelectMenuOptionBuilder()
-                .setLabel('Set Large Image')
-                .setDescription('Full-width banner image at the bottom')
+                .setLabel(t(state.lang, 'wolf.cmd.tools.embedbuilder.optSetLargeImage'))
+                .setDescription(t(state.lang, 'wolf.cmd.tools.embedbuilder.optSetLargeImageDesc'))
                 .setValue('set_image')
                 .setEmoji('📸'),
             new StringSelectMenuOptionBuilder()
-                .setLabel('Clear Thumbnail')
-                .setDescription('Remove the current thumbnail')
+                .setLabel(t(state.lang, 'wolf.cmd.tools.embedbuilder.optClearThumbnail'))
+                .setDescription(t(state.lang, 'wolf.cmd.tools.embedbuilder.optClearThumbnailDesc'))
                 .setValue('clear_thumbnail')
                 .setEmoji('🗑️'),
             new StringSelectMenuOptionBuilder()
-                .setLabel('Clear Large Image')
-                .setDescription('Remove the current large image')
+                .setLabel(t(state.lang, 'wolf.cmd.tools.embedbuilder.optClearLargeImage'))
+                .setDescription(t(state.lang, 'wolf.cmd.tools.embedbuilder.optClearLargeImageDesc'))
                 .setValue('clear_image')
                 .setEmoji('🗑️'),
         );
@@ -533,11 +549,11 @@ async function handleSetImages(selectInteraction, rootInteraction, state) {
     await selectInteraction.followUp({
         embeds: [
             new EmbedBuilder()
-                .setTitle('🖼️ Set Images')
-                .setDescription('Choose which image to set or remove.')
+                .setTitle(t(state.lang, 'wolf.cmd.tools.embedbuilder.imagesTitle'))
+                .setDescription(t(state.lang, 'wolf.cmd.tools.embedbuilder.imagesDesc'))
                 .addFields(
-                    { name: 'Thumbnail',    value: state.thumbnail ? `[View](${state.thumbnail})` : '`Not set`', inline: true },
-                    { name: 'Large Image',  value: state.image     ? `[View](${state.image})`     : '`Not set`', inline: true },
+                    { name: t(state.lang, 'wolf.cmd.tools.embedbuilder.imagesLabelThumbnail'),    value: state.thumbnail ? `[${t(state.lang, 'wolf.cmd.tools.embedbuilder.valLinkView')}](${state.thumbnail})` : `\`${t(state.lang, 'wolf.cmd.tools.embedbuilder.valNotSet')}\``, inline: true },
+                    { name: t(state.lang, 'wolf.cmd.tools.embedbuilder.imagesLabelLargeImage'),  value: state.image     ? `[${t(state.lang, 'wolf.cmd.tools.embedbuilder.valLinkView')}](${state.image})`     : `\`${t(state.lang, 'wolf.cmd.tools.embedbuilder.valNotSet')}\``, inline: true },
                 )
                 .setColor(getColor('info')),
         ],
@@ -573,12 +589,12 @@ async function handleSetImages(selectInteraction, rootInteraction, state) {
 
         const urlModal = new ModalBuilder()
             .setCustomId('eb_image_url')
-            .setTitle(isThumb ? 'Set Thumbnail' : 'Set Large Image')
+            .setTitle(t(state.lang, isThumb ? 'wolf.cmd.tools.embedbuilder.optSetThumbnail' : 'wolf.cmd.tools.embedbuilder.optSetLargeImage'))
             .addComponents(
                 new ActionRowBuilder().addComponents(
                     new TextInputBuilder()
                         .setCustomId('image_url')
-                        .setLabel('Image URL')
+                        .setLabel(t(state.lang, 'wolf.cmd.tools.embedbuilder.labelImageUrl'))
                         .setStyle(TextInputStyle.Short)
                         .setValue(isThumb ? (state.thumbnail || '') : (state.image || ''))
                         .setRequired(true)
@@ -602,7 +618,7 @@ async function handleSetImages(selectInteraction, rootInteraction, state) {
         if (!isValidUrl(url)) {
             await submitted.reply({
                 embeds: [
-                    errorEmbed('Invalid URL', 'Image URL must be a valid `https://` link to a publicly accessible image.'),
+                    errorEmbed(t(state.lang, 'wolf.cmd.tools.embedbuilder.errInvalidUrlTitle'), t(state.lang, 'wolf.cmd.tools.embedbuilder.errInvalidImageUrl')),
                 ],
                 flags: MessageFlags.Ephemeral,
             });
@@ -621,7 +637,7 @@ async function handleAddField(selectInteraction, rootInteraction, state) {
     if (state.fields.length >= MAX_FIELDS) {
         await selectInteraction.deferUpdate();
         await selectInteraction.followUp({
-            embeds: [errorEmbed('Fields Full', `Embeds can have a maximum of ${MAX_FIELDS} fields.`)],
+            embeds: [errorEmbed(t(state.lang, 'wolf.cmd.tools.embedbuilder.errFieldsFullTitle'), t(state.lang, 'wolf.cmd.tools.embedbuilder.errFieldsFullDesc', { max: MAX_FIELDS }))],
             flags: MessageFlags.Ephemeral,
         });
         return;
@@ -629,40 +645,40 @@ async function handleAddField(selectInteraction, rootInteraction, state) {
 
     const modal = new ModalBuilder()
         .setCustomId('eb_add_field')
-        .setTitle('Add Field');
+        .setTitle(t(state.lang, 'wolf.cmd.tools.embedbuilder.modalAddFieldTitle'));
 
     const fieldNameLabel = new LabelBuilder()
-        .setLabel('Field Name (max 256 characters)')
+        .setLabel(t(state.lang, 'wolf.cmd.tools.embedbuilder.labelFieldName'))
         .setTextInputComponent(
             new TextInputBuilder()
                 .setCustomId('field_name')
                 .setStyle(TextInputStyle.Short)
                 .setMaxLength(256)
                 .setRequired(true)
-                .setPlaceholder('Field Title'),
+                .setPlaceholder(t(state.lang, 'wolf.cmd.tools.embedbuilder.placeholderFieldName')),
         );
 
     const fieldValueLabel = new LabelBuilder()
-        .setLabel('Field Value (max 1024 characters)')
+        .setLabel(t(state.lang, 'wolf.cmd.tools.embedbuilder.labelFieldValue'))
         .setTextInputComponent(
             new TextInputBuilder()
                 .setCustomId('field_value')
                 .setStyle(TextInputStyle.Paragraph)
                 .setMaxLength(1024)
                 .setRequired(true)
-                .setPlaceholder('Field content goes here...'),
+                .setPlaceholder(t(state.lang, 'wolf.cmd.tools.embedbuilder.placeholderFieldValue')),
         );
 
     const inlineRadio = new RadioGroupBuilder()
         .setCustomId('field_inline')
         .setRequired(false)
         .addOptions([
-            { label: 'No — full width', value: 'no' },
-            { label: 'Yes — side-by-side', value: 'yes' },
+            { label: t(state.lang, 'wolf.cmd.tools.embedbuilder.valDisplayInlineNo'), value: 'no' },
+            { label: t(state.lang, 'wolf.cmd.tools.embedbuilder.valDisplayInlineYes'), value: 'yes' },
         ]);
 
     const inlineLabel = new LabelBuilder()
-        .setLabel('Display inline?')
+        .setLabel(t(state.lang, 'wolf.cmd.tools.embedbuilder.labelDisplayInline'))
         .setRadioGroupComponent(inlineRadio);
 
     modal.addLabelComponents(fieldNameLabel, fieldValueLabel, inlineLabel);
@@ -693,13 +709,18 @@ async function handleEditField(selectInteraction, rootInteraction, state) {
 
     const pickSelect = new StringSelectMenuBuilder()
         .setCustomId('eb_edit_field_pick')
-        .setPlaceholder('Select a field to edit...')
+        .setPlaceholder(t(state.lang, 'wolf.cmd.tools.embedbuilder.selectFieldEditPlaceholder'))
         .addOptions(
             state.fields.slice(0, 25).map((f, i) =>
                 new StringSelectMenuOptionBuilder()
                     .setLabel(`${i + 1}. ${f.name.substring(0, 50)}`)
                     .setDescription(
-                        `${f.value.substring(0, 80)}${f.value.length > 80 ? '…' : ''} · ${f.inline ? 'Inline' : 'Block'}`,
+                        t(state.lang, 'wolf.cmd.tools.embedbuilder.fieldOptionDesc', {
+                            val: `${f.value.substring(0, 80)}${f.value.length > 80 ? '…' : ''}`,
+                            align: f.inline
+                                ? t(state.lang, 'wolf.cmd.tools.embedbuilder.fieldOptionAlignInline')
+                                : t(state.lang, 'wolf.cmd.tools.embedbuilder.fieldOptionAlignBlock'),
+                        })
                     )
                     .setValue(String(i))
                     .setEmoji('📝'),
@@ -709,8 +730,8 @@ async function handleEditField(selectInteraction, rootInteraction, state) {
     await selectInteraction.followUp({
         embeds: [
             new EmbedBuilder()
-                .setTitle('📝 Edit Field')
-                .setDescription('Select the field you want to modify.')
+                .setTitle(t(state.lang, 'wolf.cmd.tools.embedbuilder.editFieldTitle'))
+                .setDescription(t(state.lang, 'wolf.cmd.tools.embedbuilder.editFieldDesc'))
                 .setColor(getColor('info')),
         ],
         components: [new ActionRowBuilder().addComponents(pickSelect)],
@@ -732,10 +753,10 @@ async function handleEditField(selectInteraction, rootInteraction, state) {
 
         const modal = new ModalBuilder()
             .setCustomId('eb_edit_field_modal')
-            .setTitle(`Edit Field ${idx + 1}`);
+            .setTitle(t(state.lang, 'wolf.cmd.tools.embedbuilder.modalEditFieldTitle', { index: idx + 1 }));
 
         const editNameLabel = new LabelBuilder()
-            .setLabel('Field Name')
+            .setLabel(t(state.lang, 'wolf.cmd.tools.embedbuilder.labelFieldName'))
             .setTextInputComponent(
                 new TextInputBuilder()
                     .setCustomId('field_name')
@@ -746,7 +767,7 @@ async function handleEditField(selectInteraction, rootInteraction, state) {
             );
 
         const editValueLabel = new LabelBuilder()
-            .setLabel('Field Value')
+            .setLabel(t(state.lang, 'wolf.cmd.tools.embedbuilder.labelFieldValue'))
             .setTextInputComponent(
                 new TextInputBuilder()
                     .setCustomId('field_value')
@@ -760,19 +781,19 @@ async function handleEditField(selectInteraction, rootInteraction, state) {
             .setCustomId('field_inline')
             .setRequired(false)
             .addOptions([
-                { label: 'No — full width', value: 'no' },
-                { label: 'Yes — side-by-side', value: 'yes' },
+                { label: t(state.lang, 'wolf.cmd.tools.embedbuilder.valDisplayInlineNo'), value: 'no' },
+                { label: t(state.lang, 'wolf.cmd.tools.embedbuilder.valDisplayInlineYes'), value: 'yes' },
             ]);
         // Pre-select the current value
         if (field.inline) {
             editInlineRadio.setOptions([
-                { label: 'No — full width', value: 'no' },
-                { label: 'Yes — side-by-side', value: 'yes', default: true },
+                { label: t(state.lang, 'wolf.cmd.tools.embedbuilder.valDisplayInlineNo'), value: 'no' },
+                { label: t(state.lang, 'wolf.cmd.tools.embedbuilder.valDisplayInlineYes'), value: 'yes', default: true },
             ]);
         }
 
         const editInlineLabel = new LabelBuilder()
-            .setLabel('Display inline?')
+            .setLabel(t(state.lang, 'wolf.cmd.tools.embedbuilder.labelDisplayInline'))
             .setRadioGroupComponent(editInlineRadio);
 
         modal.addLabelComponents(editNameLabel, editValueLabel, editInlineLabel);
@@ -805,7 +826,7 @@ async function handleRemoveField(selectInteraction, rootInteraction, state) {
 
     const pickSelect = new StringSelectMenuBuilder()
         .setCustomId('eb_remove_field_pick')
-        .setPlaceholder('Select a field to remove...')
+        .setPlaceholder(t(state.lang, 'wolf.cmd.tools.embedbuilder.selectFieldRemovePlaceholder'))
         .addOptions(
             state.fields.slice(0, 25).map((f, i) =>
                 new StringSelectMenuOptionBuilder()
@@ -821,8 +842,8 @@ async function handleRemoveField(selectInteraction, rootInteraction, state) {
     await selectInteraction.followUp({
         embeds: [
             new EmbedBuilder()
-                .setTitle('➖ Remove Field')
-                .setDescription('Select the field you want to delete.')
+                .setTitle(t(state.lang, 'wolf.cmd.tools.embedbuilder.removeFieldTitle'))
+                .setDescription(t(state.lang, 'wolf.cmd.tools.embedbuilder.removeFieldDesc'))
                 .setColor(getColor('warning')),
         ],
         components: [new ActionRowBuilder().addComponents(pickSelect)],
@@ -850,7 +871,7 @@ async function handleReorderFields(selectInteraction, rootInteraction, state) {
 
     const pickSelect = new StringSelectMenuBuilder()
         .setCustomId('eb_reorder_pick')
-        .setPlaceholder('Select a field to move...')
+        .setPlaceholder(t(state.lang, 'wolf.cmd.tools.embedbuilder.selectFieldReorderPlaceholder'))
         .addOptions(
             state.fields.slice(0, 25).map((f, i) =>
                 new StringSelectMenuOptionBuilder()
@@ -866,8 +887,8 @@ async function handleReorderFields(selectInteraction, rootInteraction, state) {
     await selectInteraction.followUp({
         embeds: [
             new EmbedBuilder()
-                .setTitle('↕️ Reorder Fields')
-                .setDescription('Select a field, then use the arrows to move it up or down.')
+                .setTitle(t(state.lang, 'wolf.cmd.tools.embedbuilder.reorderFieldsTitle'))
+                .setDescription(t(state.lang, 'wolf.cmd.tools.embedbuilder.reorderFieldsDesc'))
                 .setColor(getColor('info')),
         ],
         components: [new ActionRowBuilder().addComponents(pickSelect)],
@@ -888,29 +909,33 @@ async function handleReorderFields(selectInteraction, rootInteraction, state) {
 
         const upBtn = new ButtonBuilder()
             .setCustomId('eb_reorder_up')
-            .setLabel('Move Up')
+            .setLabel(t(state.lang, 'wolf.cmd.tools.embedbuilder.btnMoveUp'))
             .setStyle(ButtonStyle.Primary)
             .setEmoji('⬆️')
             .setDisabled(sourceIdx === 0);
 
         const downBtn = new ButtonBuilder()
             .setCustomId('eb_reorder_down')
-            .setLabel('Move Down')
+            .setLabel(t(state.lang, 'wolf.cmd.tools.embedbuilder.btnMoveDown'))
             .setStyle(ButtonStyle.Primary)
             .setEmoji('⬇️')
             .setDisabled(sourceIdx === state.fields.length - 1);
 
         const cancelBtn = new ButtonBuilder()
             .setCustomId('eb_reorder_cancel')
-            .setLabel('Cancel')
+            .setLabel(t(state.lang, 'wolf.cmd.tools.embedbuilder.btnCancel'))
             .setStyle(ButtonStyle.Secondary);
 
         await pickInter.followUp({
             embeds: [
                 new EmbedBuilder()
-                    .setTitle('↕️ Move Field')
+                    .setTitle(t(state.lang, 'wolf.cmd.tools.embedbuilder.moveFieldTitle'))
                     .setDescription(
-                        `Moving **${state.fields[sourceIdx].name}** — currently at position **${sourceIdx + 1}** of **${state.fields.length}**.`,
+                        t(state.lang, 'wolf.cmd.tools.embedbuilder.moveFieldDesc', {
+                            name: state.fields[sourceIdx].name,
+                            pos: sourceIdx + 1,
+                            total: state.fields.length,
+                        })
                     )
                     .setColor(getColor('info')),
             ],
@@ -956,8 +981,8 @@ async function handlePostEmbed(selectInteraction, rootInteraction, state, guild)
         await selectInteraction.followUp({
             embeds: [
                 errorEmbed(
-                    'Empty Embed',
-                    'Add at least a title, description, or field before posting.',
+                    t(state.lang, 'wolf.cmd.tools.embedbuilder.errEmptyEmbedTitle'),
+                    t(state.lang, 'wolf.cmd.tools.embedbuilder.errEmptyEmbedDesc'),
                 ),
             ],
             flags: MessageFlags.Ephemeral,
@@ -969,14 +994,14 @@ async function handlePostEmbed(selectInteraction, rootInteraction, state, guild)
 
     const chanSelect = new ChannelSelectMenuBuilder()
         .setCustomId('eb_post_channel')
-        .setPlaceholder('Select a channel...')
+        .setPlaceholder(t(state.lang, 'wolf.cmd.tools.embedbuilder.postChannelPlaceholder'))
         .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement);
 
     await selectInteraction.followUp({
         embeds: [
             new EmbedBuilder()
-                .setTitle('📤 Post Embed')
-                .setDescription('Select the channel where this embed will be sent.')
+                .setTitle(t(state.lang, 'wolf.cmd.tools.embedbuilder.postEmbedTitle'))
+                .setDescription(t(state.lang, 'wolf.cmd.tools.embedbuilder.postEmbedDesc'))
                 .setColor(getColor('info')),
         ],
         components: [new ActionRowBuilder().addComponents(chanSelect)],
@@ -997,7 +1022,7 @@ async function handlePostEmbed(selectInteraction, rootInteraction, state, guild)
 
         if (!channel) {
             await chanInter.followUp({
-                embeds: [errorEmbed('No Channel', 'Could not resolve the selected channel.')],
+                embeds: [errorEmbed(t(state.lang, 'wolf.cmd.tools.embedbuilder.errNoChannelTitle'), t(state.lang, 'wolf.cmd.tools.embedbuilder.errNoChannelDesc'))],
                 flags: MessageFlags.Ephemeral,
             });
             return;
@@ -1008,8 +1033,8 @@ async function handlePostEmbed(selectInteraction, rootInteraction, state, guild)
             await chanInter.followUp({
                 embeds: [
                     errorEmbed(
-                        'Missing Permissions',
-                        `I need **Send Messages** and **Embed Links** permissions in ${channel} to post there.`,
+                        t(state.lang, 'wolf.cmd.tools.embedbuilder.errMissingPermsTitle'),
+                        t(state.lang, 'wolf.cmd.tools.embedbuilder.errMissingPermsDesc', { channel: channel.toString() }),
                     ),
                 ],
                 flags: MessageFlags.Ephemeral,
@@ -1020,14 +1045,14 @@ async function handlePostEmbed(selectInteraction, rootInteraction, state, guild)
         const finalEmbed = buildPreviewEmbed(state);
 
         // Remove the placeholder description before sending
-        if (finalEmbed.data.description === '*(Empty — use the menu below to add content)*') {
+        if (finalEmbed.data.description === t(state.lang, 'wolf.cmd.tools.embedbuilder.emptyPreview')) {
             finalEmbed.setDescription(null);
         }
 
         await channel.send({ embeds: [finalEmbed] });
 
         await chanInter.followUp({
-            embeds: [successEmbed('✅ Embed Sent', `Your embed has been posted to ${channel}.`)],
+            embeds: [successEmbed(t(state.lang, 'wolf.cmd.tools.embedbuilder.successEmbedSentTitle'), t(state.lang, 'wolf.cmd.tools.embedbuilder.successEmbedSentDesc', { channel: channel.toString() }))],
             flags: MessageFlags.Ephemeral,
         });
     });
@@ -1043,7 +1068,7 @@ async function handleJsonExport(selectInteraction, rootInteraction, state) {
         await selectInteraction.followUp({
             embeds: [
                 new EmbedBuilder()
-                    .setTitle('📋 Embed JSON')
+                    .setTitle(t(state.lang, 'wolf.cmd.tools.embedbuilder.jsonExportTitle'))
                     .setDescription(`\`\`\`json\n${json}\n\`\`\``)
                     .setColor(getColor('info')),
             ],
@@ -1053,8 +1078,8 @@ async function handleJsonExport(selectInteraction, rootInteraction, state) {
         await selectInteraction.followUp({
             embeds: [
                 new EmbedBuilder()
-                    .setTitle('📋 Embed JSON')
-                    .setDescription('The JSON is too long to display inline — see the attached file.')
+                    .setTitle(t(state.lang, 'wolf.cmd.tools.embedbuilder.jsonExportTitle'))
+                    .setDescription(t(state.lang, 'wolf.cmd.tools.embedbuilder.jsonTooLongDesc'))
                     .setColor(getColor('info')),
             ],
             files: [
@@ -1076,8 +1101,9 @@ export default {
         .setDescription('Build and post a fully custom embed with live preview')
         .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
 
-    async execute(interaction) {
+    async execute(interaction, config) {
         try {
+            const lang = pickLanguage(config, interaction.guild);
             const deferSuccess = await InteractionHelper.safeDefer(interaction, {
                 flags: MessageFlags.Ephemeral,
             });
@@ -1087,6 +1113,7 @@ export default {
 
             // Builder state — holds every embed property being constructed
             const state = {
+                lang,
                 title:       null,
                 description: null,
                 color:       getColor('primary'),
@@ -1168,12 +1195,12 @@ export default {
                     logger.error('Error in embedbuilder collector:', error);
                     const msg =
                         error instanceof TitanBotError
-                            ? error.userMessage || 'An error occurred.'
-                            : 'An unexpected error occurred.';
+                            ? error.userMessage || t(state.lang, 'wolf.cmd.tools.calculate.generalErr')
+                            : t(state.lang, 'wolf.cmd.tools.calculate.generalErr');
                     if (!ci.replied && !ci.deferred) await ci.deferUpdate().catch(() => {});
                     await ci
                         .followUp({
-                            embeds: [errorEmbed('Error', msg)],
+                            embeds: [errorEmbed(t(state.lang, 'wolf.cmd.tools.embedbuilder.contextErrorTitle'), msg)],
                             flags: MessageFlags.Ephemeral,
                         })
                         .catch(() => {});
@@ -1191,7 +1218,7 @@ export default {
             throw new TitanBotError(
                 `embedbuilder failed: ${error.message}`,
                 ErrorTypes.UNKNOWN,
-                'Failed to open the embed builder.',
+                t(lang, 'wolf.cmd.tools.embedbuilder.errFailedOpenTitle'),
             );
         }
     },

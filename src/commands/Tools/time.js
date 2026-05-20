@@ -3,6 +3,8 @@ import { createEmbed, errorEmbed, successEmbed, infoEmbed, warningEmbed } from '
 import { logger } from '../../utils/logger.js';
 import { getColor } from '../../config/bot.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
+import { t, pickLanguage } from '../../services/i18n.js';
+
 export default {
     data: new SlashCommandBuilder()
         .setName('time')
@@ -12,7 +14,8 @@ export default {
                 .setDescription('The timezone to display (e.g., UTC, America/New_York)')
                 .setRequired(false)),
 
-    async execute(interaction) {
+    async execute(interaction, config, client) {
+        const lang = pickLanguage(config, interaction.guild);
         await InteractionHelper.safeExecute(
             interaction,
             async () => {
@@ -33,7 +36,10 @@ export default {
                     });
                 } catch (error) {
                     logger.warn(`Invalid timezone requested: ${timezone}`);
-                    const embed = errorEmbed('Invalid Timezone', 'Invalid timezone. Please use a valid timezone identifier (e.g., UTC, America/New_York, Europe/London)');
+                    const embed = errorEmbed(
+                        t(lang, 'wolf.cmd.tools.time.invalidTimezoneTitle'),
+                        t(lang, 'wolf.cmd.tools.time.invalidTimezoneDesc')
+                    );
                     embed.setColor(getColor('error'));
                     await InteractionHelper.safeEditReply(interaction, {
                         embeds: [embed],
@@ -45,15 +51,18 @@ export default {
                 const unixTimestamp = Math.floor(now.getTime() / 1000);
 
                 const embed = successEmbed(
-                    '🕒 Current Time',
-                    `**${timezone}:** ${timeString}\n` +
-                    `**Unix Timestamp:** \`${unixTimestamp}\`\n` +
-                    `**ISO String:** \`${now.toISOString()}\``
+                    t(lang, 'wolf.cmd.tools.time.successTitle'),
+                    t(lang, 'wolf.cmd.tools.time.successDesc', {
+                        timezone,
+                        timeString,
+                        unixTimestamp,
+                        isoString: now.toISOString()
+                    })
                 );
 
                 await InteractionHelper.safeEditReply(interaction, { embeds: [embed] });
             },
-            'Failed to get current time. Please try again.',
+            t(lang, 'wolf.cmd.tools.time.sysError'),
             {
                 autoDefer: true,
                 deferOptions: { flags: MessageFlags.Ephemeral }

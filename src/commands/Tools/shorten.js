@@ -4,6 +4,7 @@ import { logger } from '../../utils/logger.js';
 import { handleInteractionError } from '../../utils/errorHandler.js';
 import { getColor } from '../../config/bot.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
+import { t, pickLanguage } from '../../services/i18n.js';
 
 export default {
     data: new SlashCommandBuilder()
@@ -24,7 +25,8 @@ export default {
         .setDMPermission(false),
     category: "Tools",
 
-    async execute(interaction) {
+    async execute(interaction, config) {
+        const lang = pickLanguage(config, interaction.guild);
         const deferSuccess = await InteractionHelper.safeDefer(interaction, {
             flags: MessageFlags.Ephemeral
         });
@@ -44,7 +46,7 @@ export default {
             try {
                 new URL(url);
             } catch (e) {
-                const embed = errorEmbed("Invalid URL", "Invalid URL format. Include http:// or https://");
+                const embed = errorEmbed(t(lang, "wolf.cmd.tools.shorten.errInvalidUrlTitle"), t(lang, "wolf.cmd.tools.shorten.errInvalidUrlDesc"));
                 embed.setColor(getColor('error'));
                 return InteractionHelper.safeEditReply(interaction, {
                     embeds: [embed],
@@ -52,7 +54,7 @@ export default {
             }
 
             if (custom && !/^[a-zA-Z0-9_-]+$/.test(custom)) {
-                const embed = errorEmbed("Invalid Custom URL", "Custom URL can only contain letters, numbers, underscores, and hyphens.");
+                const embed = errorEmbed(t(lang, "wolf.cmd.tools.shorten.errInvalidCustomTitle"), t(lang, "wolf.cmd.tools.shorten.errInvalidCustomDesc"));
                 embed.setColor(getColor('error'));
                 return InteractionHelper.safeEditReply(interaction, {
                     embeds: [embed],
@@ -77,9 +79,9 @@ export default {
                 });
             } catch (networkError) {
                 const message = networkError?.name === 'AbortError'
-                    ? 'The URL shortener timed out. Please try again in a moment.'
-                    : 'Unable to reach the URL shortener service right now. Please try again later.';
-                const embed = errorEmbed('Network Error', message);
+                    ? t(lang, 'wolf.cmd.tools.shorten.errTimeoutDesc')
+                    : t(lang, 'wolf.cmd.tools.shorten.errNetworkDesc');
+                const embed = errorEmbed(t(lang, 'wolf.cmd.tools.shorten.errNetworkTitle'), message);
                 embed.setColor(getColor('error'));
                 return InteractionHelper.safeEditReply(interaction, {
                     embeds: [embed],
@@ -89,7 +91,7 @@ export default {
             }
 
             if (!response.ok) {
-                const embed = errorEmbed('URL Shortening Failed', `Shortener service returned HTTP ${response.status}. Please try again later.`);
+                const embed = errorEmbed(t(lang, 'wolf.cmd.tools.shorten.errFailedTitle'), t(lang, 'wolf.cmd.tools.shorten.errFailedDesc', { status: response.status }));
                 embed.setColor(getColor('error'));
                 return InteractionHelper.safeEditReply(interaction, {
                     embeds: [embed],
@@ -102,26 +104,26 @@ export default {
                 new URL(shortUrl);
             } catch (e) {
                 if (shortUrl.includes("already exists")) {
-                    const embed = errorEmbed("URL Already Taken", "That custom URL is already taken. Try a different one.");
+                    const embed = errorEmbed(t(lang, "wolf.cmd.tools.shorten.errTakenTitle"), t(lang, "wolf.cmd.tools.shorten.errTakenDesc"));
                     embed.setColor(getColor('error'));
                     return InteractionHelper.safeEditReply(interaction, {
                         embeds: [embed],
                     });
                 } else if (shortUrl.includes("invalid")) {
-                    const embed = errorEmbed("Invalid URL", "Invalid URL. Include http:// or https://");
+                    const embed = errorEmbed(t(lang, "wolf.cmd.tools.shorten.errInvalidUrlTitle"), t(lang, "wolf.cmd.tools.shorten.errInvalidUrlDesc"));
                     embed.setColor(getColor('error'));
                     return InteractionHelper.safeEditReply(interaction, {
                         embeds: [embed],
                     });
                 }
-                const embed = errorEmbed("URL Shortening Failed", `URL shortening failed: ${shortUrl}`);
+                const embed = errorEmbed(t(lang, "wolf.cmd.tools.shorten.errFailedTitle"), t(lang, "wolf.cmd.tools.shorten.errGeneralFailedDesc", { error: shortUrl }));
                 embed.setColor(getColor('error'));
                 return InteractionHelper.safeEditReply(interaction, {
                     embeds: [embed],
                 });
             }
 
-            const embed = successEmbed("URL Shortened", `Here's your shortened URL: ${shortUrl}`);
+            const embed = successEmbed(t(lang, "wolf.cmd.tools.shorten.successTitle"), t(lang, "wolf.cmd.tools.shorten.successDesc", { url: shortUrl }));
             embed.setColor(getColor('success'));
             await InteractionHelper.safeEditReply(interaction, {
                 embeds: [embed],
