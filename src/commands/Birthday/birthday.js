@@ -11,6 +11,7 @@ import nextBirthdays from './modules/next_birthdays.js';
 import birthdaySetchannel from './modules/birthday_setchannel.js';
 
 import { InteractionHelper } from '../../utils/interactionHelper.js';
+import { t, pickLanguage } from '../../services/i18n.js';
 export default {
     data: new SlashCommandBuilder()
         .setName('birthday')
@@ -76,6 +77,7 @@ export default {
         ),
 
     async execute(interaction, config, client) {
+        const lang = pickLanguage(config, interaction.guild);
         try {
             const subcommand = interaction.options.getSubcommand();
             
@@ -94,7 +96,7 @@ export default {
                     return await birthdaySetchannel.execute(interaction, config, client);
                 default:
                     return InteractionHelper.safeReply(interaction, {
-                        embeds: [errorEmbed('Error', 'Unknown subcommand')],
+                        embeds: [errorEmbed('Error', t(lang, 'wolf.cmd.birthday.unknownSubcommand'))],
                         flags: MessageFlags.Ephemeral
                     });
             }

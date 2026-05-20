@@ -5,6 +5,7 @@ import { getWelcomeConfig, updateWelcomeConfig } from '../../utils/database.js';
 import { formatWelcomeMessage } from '../../utils/welcome.js';
 import { logger } from '../../utils/logger.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
+import { t, pickLanguage } from '../../services/i18n.js';
 
 export default {
     data: new SlashCommandBuilder()
@@ -33,7 +34,8 @@ export default {
                         .setDescription('Whether to ping the user in the welcome message')
                         .setRequired(false))),
 
-    async execute(interaction) {
+    async execute(interaction, config) {
+        const lang = pickLanguage(config, interaction.guild);
         try {
             const deferSuccess = await InteractionHelper.safeDefer(interaction);
             if (!deferSuccess) {
@@ -53,7 +55,7 @@ export default {
 
         if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
             return await InteractionHelper.safeEditReply(interaction, {
-                embeds: [errorEmbed('Missing Permissions', 'You need the **Manage Server** permission to use `/welcome`.')],
+                embeds: [errorEmbed(t(lang, 'wolf.cmd.welcome.missingPermsTitle'), t(lang, 'wolf.cmd.welcome.missingPerms', { cmd: 'welcome' }))],
                 flags: MessageFlags.Ephemeral
             });
         }
@@ -70,10 +72,7 @@ export default {
             if (existingConfig?.channelId) {
                 logger.info(`[Welcome] Setup blocked because config already exists in channel ${existingConfig.channelId} for guild ${guild.id}`);
                 return await InteractionHelper.safeEditReply(interaction, {
-                    embeds: [errorEmbed(
-                        'Welcome Setup Already Exists',
-                        `Welcome is already configured for <#${existingConfig.channelId}>. Use **/welcome config** to customize channel, message, ping, or image.`
-                    )],
+                    embeds: [errorEmbed(t(lang, 'wolf.cmd.welcome.alreadyExistsTitle'), t(lang, 'wolf.cmd.welcome.alreadyExistsDesc', { channel: existingConfig.channelId }))],
                     flags: MessageFlags.Ephemeral
                 });
             }
@@ -81,7 +80,7 @@ export default {
             if (!message || message.trim().length === 0) {
                 logger.warn(`[Welcome] Empty message provided by ${interaction.user.tag} in ${guild.name}`);
                 return await InteractionHelper.safeEditReply(interaction, {
-                    embeds: [errorEmbed('Invalid Input', 'Welcome message cannot be empty')],
+                    embeds: [errorEmbed(t(lang, 'wolf.cmd.welcome.invalidInput'), t(lang, 'wolf.cmd.welcome.emptyMessage'))],
                     flags: MessageFlags.Ephemeral
                 });
             }
@@ -93,7 +92,7 @@ export default {
                 } catch (e) {
                     logger.warn(`[Welcome] Invalid image URL provided by ${interaction.user.tag}: ${image}`);
                     return await InteractionHelper.safeEditReply(interaction, {
-                        embeds: [errorEmbed('Invalid Image URL', 'Please provide a valid image URL (must start with http:// or https://')],
+                        embeds: [errorEmbed(t(lang, 'wolf.cmd.welcome.invalidImageTitle'), t(lang, 'wolf.cmd.welcome.invalidImageDesc'))],
                         flags: MessageFlags.Ephemeral
                     });
                 }
@@ -117,14 +116,14 @@ export default {
 
                 const embed = new EmbedBuilder()
                     .setColor(getColor('success'))
-                    .setTitle('✅ Welcome System Configured')
-                    .setDescription(`Welcome messages will now be sent to ${channel}`)
+                    .setTitle(t(lang, 'wolf.cmd.welcome.setupSuccessTitle'))
+                    .setDescription(t(lang, 'wolf.cmd.welcome.setupSuccessDesc', { channel: `${channel}` }))
                     .addFields(
-                        { name: 'Message Preview', value: previewMessage },
-                        { name: 'Ping User', value: ping ? '✅ Yes' : '❌ No' },
-                        { name: 'Status', value: '✅ Enabled' }
+                        { name: t(lang, 'wolf.cmd.welcome.messagePreview'), value: previewMessage },
+                        { name: t(lang, 'wolf.cmd.welcome.pingUser'), value: ping ? t(lang, 'wolf.cmd.welcome.yes') : t(lang, 'wolf.cmd.welcome.no') },
+                        { name: t(lang, 'wolf.cmd.welcome.status'), value: t(lang, 'wolf.cmd.welcome.enabled') }
                     )
-                    .setFooter({ text: 'Tip: Use /welcome config to customize welcome settings' });
+                    .setFooter({ text: t(lang, 'wolf.cmd.welcome.welcomeTip') });
 
                 if (image) {
                     embed.setImage(image);
@@ -134,11 +133,7 @@ export default {
             } catch (error) {
                 logger.error(`[Welcome] Failed to setup welcome system for guild ${guild.id}:`, error);
                 await InteractionHelper.safeEditReply(interaction, {
-                    embeds: [errorEmbed(
-                        'Setup Failed',
-                        'An error occurred while configuring the welcome system. Please try again.',
-                        { showDetails: true }
-                    )],
+                    embeds: [errorEmbed(t(lang, 'wolf.cmd.welcome.setupFailed'), t(lang, 'wolf.cmd.welcome.setupFailedDesc'), { showDetails: true })],
                     flags: MessageFlags.Ephemeral
                 });
             }

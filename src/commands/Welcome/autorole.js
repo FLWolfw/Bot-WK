@@ -5,6 +5,7 @@ import { logger } from '../../utils/logger.js';
 import { errorEmbed } from '../../utils/embeds.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
 import { getGuildConfig } from '../../services/guildConfig.js';
+import { t, pickLanguage } from '../../services/i18n.js';
 
 function createAutoroleInfoEmbed(description) {
     return new EmbedBuilder()
@@ -39,7 +40,8 @@ export default {
                 .setName('list')
                 .setDescription('List all auto-assigned roles')),
 
-    async execute(interaction) {
+    async execute(interaction, config) {
+        const lang = pickLanguage(config, interaction.guild);
         const deferSuccess = await InteractionHelper.safeDefer(interaction);
         if (!deferSuccess) {
             logger.warn(`Autorole interaction defer failed`, {
@@ -52,7 +54,7 @@ export default {
 
         if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
             return InteractionHelper.safeEditReply(interaction, {
-                embeds: [errorEmbed('Missing Permissions', 'You need the **Manage Server** permission to use `/autorole`.')],
+                embeds: [errorEmbed(t(lang, 'wolf.cmd.welcome.missingPermsTitle'), t(lang, 'wolf.cmd.autorole.missingPerms'))],
                 flags: MessageFlags.Ephemeral
             });
         }
@@ -69,18 +71,15 @@ export default {
 
             if (verificationEnabled || autoVerifyEnabled) {
                 return InteractionHelper.safeEditReply(interaction, {
-                    embeds: [errorEmbed(
-                        'Setup Conflict',
-                        'You cannot add AutoRole while the verification system or AutoVerify is enabled. Disable those first.'
-                    )],
+                    embeds: [errorEmbed(t(lang, 'wolf.cmd.autorole.conflictTitle'), t(lang, 'wolf.cmd.autorole.conflictDesc'))],
                     flags: MessageFlags.Ephemeral
                 });
             }
-            
+
             if (role.position >= guild.members.me.roles.highest.position) {
                 logger.warn(`[Autorole] User ${interaction.user.tag} tried to add role ${role.name} (${role.id}) higher than bot's highest role in ${guild.name}`);
                 return InteractionHelper.safeReply(interaction, {
-                    embeds: [errorEmbed('Role Too High', "I can't assign roles that are higher than my highest role.")],
+                    embeds: [errorEmbed(t(lang, 'wolf.cmd.autorole.roleTooHighTitle'), t(lang, 'wolf.cmd.autorole.roleTooHighDesc'))],
                     flags: MessageFlags.Ephemeral
                 });
             }
@@ -94,7 +93,7 @@ export default {
                 if (currentRoleId === role.id) {
                     logger.info(`[Autorole] User ${interaction.user.tag} tried to add duplicate role ${role.name} (${role.id}) in ${guild.name}`);
                     return InteractionHelper.safeEditReply(interaction, {
-                        embeds: [errorEmbed('Already Added', `The role ${role} is already set to be auto-assigned.`)],
+                        embeds: [errorEmbed(t(lang, 'wolf.cmd.autorole.alreadyAddedTitle'), t(lang, 'wolf.cmd.autorole.alreadyAddedDesc', { role: `${role}` }))],
                         flags: MessageFlags.Ephemeral
                     });
                 }
@@ -107,19 +106,15 @@ export default {
                 await InteractionHelper.safeEditReply(interaction, {
                     embeds: [createAutoroleInfoEmbed(
                         currentRoleId
-                            ? `✅ Auto-role updated to ${role}. Only one auto-role is allowed.`
-                            : `✅ Auto-role set to ${role}.`
+                            ? t(lang, 'wolf.cmd.autorole.roleUpdated', { role: `${role}` })
+                            : t(lang, 'wolf.cmd.autorole.roleSet', { role: `${role}` })
                     )],
                     flags: MessageFlags.Ephemeral
                 });
             } catch (error) {
                 logger.error(`[Autorole] Failed to add role for guild ${guild.id}:`, error);
                 await InteractionHelper.safeEditReply(interaction, {
-                    embeds: [errorEmbed(
-                        'Add Failed',
-                        'An error occurred while adding the role. Please try again.',
-                        { showDetails: true }
-                    )],
+                    embeds: [errorEmbed(t(lang, 'wolf.cmd.autorole.addFailed'), t(lang, 'wolf.cmd.autorole.operationFailed'), { showDetails: true })],
                     flags: MessageFlags.Ephemeral
                 });
             }
@@ -135,7 +130,7 @@ export default {
                 if (!existingRoles.includes(role.id)) {
                     logger.info(`[Autorole] User ${interaction.user.tag} tried to remove non-existent role ${role.name} (${role.id}) in ${guild.name}`);
                     return InteractionHelper.safeEditReply(interaction, {
-                        embeds: [errorEmbed('Not Found', `The role ${role} is not set to be auto-assigned.`)],
+                        embeds: [errorEmbed(t(lang, 'wolf.cmd.autorole.notFoundTitle'), t(lang, 'wolf.cmd.autorole.notFoundDesc', { role: `${role}` }))],
                         flags: MessageFlags.Ephemeral
                     });
                 }
@@ -148,17 +143,13 @@ export default {
 
                 logger.info(`[Autorole] Removed role ${role.name} (${role.id}) from auto-assign in ${guild.name} by ${interaction.user.tag}`);
                 await InteractionHelper.safeEditReply(interaction, {
-                    embeds: [createAutoroleInfoEmbed(`✅ Removed ${role} from auto-assigned roles.`)],
+                    embeds: [createAutoroleInfoEmbed(t(lang, 'wolf.cmd.autorole.roleRemoved', { role: `${role}` }))],
                     flags: MessageFlags.Ephemeral
                 });
             } catch (error) {
                 logger.error(`[Autorole] Failed to remove role for guild ${guild.id}:`, error);
                 await InteractionHelper.safeEditReply(interaction, {
-                    embeds: [errorEmbed(
-                        'Remove Failed',
-                        'An error occurred while removing the role. Please try again.',
-                        { showDetails: true }
-                    )],
+                    embeds: [errorEmbed(t(lang, 'wolf.cmd.autorole.removeFailed'), t(lang, 'wolf.cmd.autorole.operationFailed'), { showDetails: true })],
                     flags: MessageFlags.Ephemeral
                 });
             }

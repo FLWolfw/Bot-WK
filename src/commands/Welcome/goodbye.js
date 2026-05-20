@@ -5,6 +5,7 @@ import { getWelcomeConfig, updateWelcomeConfig } from '../../utils/database.js';
 import { formatWelcomeMessage } from '../../utils/welcome.js';
 import { logger } from '../../utils/logger.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
+import { t, pickLanguage } from '../../services/i18n.js';
 
 export default {
     data: new SlashCommandBuilder()
@@ -33,7 +34,8 @@ export default {
                         .setDescription('Whether to ping the user in the goodbye message')
                         .setRequired(false))),
 
-    async execute(interaction) {
+    async execute(interaction, config) {
+        const lang = pickLanguage(config, interaction.guild);
         const deferSuccess = await InteractionHelper.safeDefer(interaction);
         if (!deferSuccess) {
             logger.warn(`Goodbye interaction defer failed`, {
@@ -48,7 +50,7 @@ export default {
 
         if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
             return await InteractionHelper.safeEditReply(interaction, {
-                embeds: [errorEmbed('Missing Permissions', 'You need the **Manage Server** permission to use `/goodbye`.')],
+                embeds: [errorEmbed(t(lang, 'wolf.cmd.welcome.missingPermsTitle'), t(lang, 'wolf.cmd.welcome.missingPerms', { cmd: 'goodbye' }))],
                 flags: MessageFlags.Ephemeral
             });
         }
@@ -65,10 +67,7 @@ export default {
             if (existingConfig?.goodbyeChannelId) {
                 logger.info(`[Goodbye] Setup blocked because config already exists in channel ${existingConfig.goodbyeChannelId} for guild ${guild.id}`);
                 return await InteractionHelper.safeEditReply(interaction, {
-                    embeds: [errorEmbed(
-                        'Goodbye Setup Already Exists',
-                        `Goodbye is already configured for <#${existingConfig.goodbyeChannelId}>. Use **/goodbye config** to customize channel, message, ping, or image.`
-                    )],
+                    embeds: [errorEmbed(t(lang, 'wolf.cmd.welcome.goodbyeAlreadyTitle'), t(lang, 'wolf.cmd.welcome.goodbyeAlreadyDesc', { channel: existingConfig.goodbyeChannelId }))],
                     flags: MessageFlags.Ephemeral
                 });
             }
@@ -77,7 +76,7 @@ export default {
             if (!message || message.trim().length === 0) {
                 logger.warn(`[Goodbye] Empty message provided by ${interaction.user.tag} in ${guild.name}`);
                 return await InteractionHelper.safeEditReply(interaction, {
-                    embeds: [errorEmbed('Invalid Input', 'Goodbye message cannot be empty')],
+                    embeds: [errorEmbed(t(lang, 'wolf.cmd.welcome.invalidInput'), t(lang, 'wolf.cmd.welcome.emptyMessage'))],
                     flags: MessageFlags.Ephemeral
                 });
             }
@@ -89,7 +88,7 @@ export default {
                 } catch (e) {
                     logger.warn(`[Goodbye] Invalid image URL provided by ${interaction.user.tag}: ${image}`);
                     return await InteractionHelper.safeEditReply(interaction, {
-                        embeds: [errorEmbed('Invalid Image URL', 'Please provide a valid image URL (must start with http:// or https://')],
+                        embeds: [errorEmbed(t(lang, 'wolf.cmd.welcome.invalidImageTitle'), t(lang, 'wolf.cmd.welcome.invalidImageDesc'))],
                         flags: MessageFlags.Ephemeral
                     });
                 }
@@ -119,14 +118,14 @@ export default {
 
                 const embed = new EmbedBuilder()
                     .setColor(getColor('success'))
-                    .setTitle('✅ Goodbye System Configured')
-                    .setDescription(`Goodbye messages will now be sent to ${channel}`)
+                    .setTitle(t(lang, 'wolf.cmd.welcome.goodbyeSetupTitle'))
+                    .setDescription(t(lang, 'wolf.cmd.welcome.goodbyeSetupDesc', { channel: `${channel}` }))
                     .addFields(
-                        { name: 'Message Preview', value: previewMessage },
-                        { name: 'Ping User', value: ping ? '✅ Yes' : '❌ No' },
-                        { name: 'Status', value: '✅ Enabled' }
+                        { name: t(lang, 'wolf.cmd.welcome.messagePreview'), value: previewMessage },
+                        { name: t(lang, 'wolf.cmd.welcome.pingUser'), value: ping ? t(lang, 'wolf.cmd.welcome.yes') : t(lang, 'wolf.cmd.welcome.no') },
+                        { name: t(lang, 'wolf.cmd.welcome.status'), value: t(lang, 'wolf.cmd.welcome.enabled') }
                     )
-                    .setFooter({ text: 'Tip: Use /goodbye config to customize goodbye settings' });
+                    .setFooter({ text: t(lang, 'wolf.cmd.welcome.goodbyeTip') });
 
                 if (image) {
                     embed.setImage(image);
@@ -136,11 +135,7 @@ export default {
             } catch (error) {
                 logger.error(`[Goodbye] Failed to setup goodbye system for guild ${guild.id}:`, error);
                 await InteractionHelper.safeEditReply(interaction, {
-                    embeds: [errorEmbed(
-                        'Setup Failed',
-                        'An error occurred while configuring the goodbye system. Please try again.',
-                        { showDetails: true }
-                    )],
+                    embeds: [errorEmbed(t(lang, 'wolf.cmd.welcome.setupFailed'), t(lang, 'wolf.cmd.welcome.setupFailedDesc'), { showDetails: true })],
                     flags: MessageFlags.Ephemeral
                 });
             }
