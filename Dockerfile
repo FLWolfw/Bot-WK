@@ -8,14 +8,15 @@ WORKDIR /usr/src/app
 # than ffmpeg-static, whose bundled binary doesn't match alpine's musl.
 RUN apk add --no-cache ffmpeg
 
-# Install app dependencies
-# A wildcard is used to ensure both package.json AND package-lock.json are copied
-COPY package*.json ./
+# Install app dependencies.
+# Copy ONLY package.json — we deliberately don't copy package-lock.json so
+# npm install resolves all deps fresh on every build. youtubei.js (a
+# transitive of discord-player-youtubei) gets broken every few weeks by
+# YouTube changes; pinning via lockfile traps us on a broken version.
+COPY package.json ./
 
-# Install only production dependencies.
-# Using `npm install` (not `npm ci`) so npm can resolve newer transitive
-# deps when we bump `discord-player-youtubei` to `latest` — YouTube
-# breaks youtubei.js periodically and we need the latest patches.
+# Use `npm install` (not `npm ci`) so the override on youtubei.js below
+# actually takes effect — no lockfile means npm does fresh resolution.
 RUN npm install --omit=dev --no-audit --no-fund
 
 # Bundle app source

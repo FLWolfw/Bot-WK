@@ -1,8 +1,11 @@
 import { Player } from 'discord-player';
 import { DefaultExtractors } from '@discord-player/extractor';
 import { YoutubeiExtractor } from 'discord-player-youtubei';
+import { createRequire } from 'module';
 import { logger } from '../utils/logger.js';
 import { t } from './i18n.js';
+
+const require = createRequire(import.meta.url);
 
 let _player = null;
 
@@ -24,6 +27,17 @@ export function getPlayer() {
  */
 export async function initMusic(client) {
   if (_player) return _player;
+
+  // Log installed versions so Railway logs confirm which youtubei.js
+  // resolved — pinning to v14.0.0 caused the "Failed to extract
+  // signature decipher algorithm" error and broke all YouTube playback.
+  try {
+    const ytiVer = require('youtubei.js/package.json').version;
+    const dpyVer = require('discord-player-youtubei/package.json').version;
+    logger.warn(`musicService: youtubei.js@${ytiVer}, discord-player-youtubei@${dpyVer}`);
+  } catch (e) {
+    logger.warn('musicService: could not read package versions', { error: e?.message });
+  }
 
   // discord-player v7 — no ytdlOptions needed (we use youtubei, not ytdl)
   const player = new Player(client);
