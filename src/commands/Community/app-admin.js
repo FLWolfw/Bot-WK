@@ -3,6 +3,8 @@ import { createEmbed, errorEmbed, successEmbed } from '../../utils/embeds.js';
 import { getColor } from '../../config/bot.js';
 import { logger } from '../../utils/logger.js';
 import { handleInteractionError, withErrorHandling, createError, ErrorTypes } from '../../utils/errorHandler.js';
+import { t, pickLanguage } from '../../services/i18n.js';
+import { getGuildConfig } from '../../services/guildConfig.js';
 import ApplicationService from '../../services/applicationService.js';
 import { 
     getApplicationSettings, 
@@ -101,10 +103,12 @@ export default {
 
     category: "Community",
 
-    execute: withErrorHandling(async (interaction) => {
+    execute: withErrorHandling(async (interaction, config, client) => {
+        const lang = pickLanguage(config, interaction.guild);
+
         if (!interaction.inGuild()) {
             return InteractionHelper.safeReply(interaction, {
-                embeds: [errorEmbed("This command can only be used in a server.")],
+                embeds: [errorEmbed(t(lang, "wolf.cmd.community.guildOnly"))],
                 flags: ["Ephemeral"],
             });
         }
@@ -127,23 +131,25 @@ export default {
         await ApplicationService.checkManagerPermission(interaction.client, guild.id, member);
 
         if (subcommand === "setup") {
-            await handleSetup(interaction);
+            await handleSetup(interaction, config);
         } else if (subcommand === "review") {
-            await handleReview(interaction);
+            await handleReview(interaction, config);
         } else if (subcommand === "list") {
-            await handleList(interaction);
+            await handleList(interaction, config);
         } else if (subcommand === "dashboard") {
             const selectedAppName = interaction.options.getString("application");
-            await appDashboard.execute(interaction, null, interaction.client, selectedAppName);
+            await appDashboard.execute(interaction, config, interaction.client, selectedAppName);
         }
     }, { type: 'command', commandName: 'app-admin' })
 };
 
-async function handleSetup(interaction) {
+async function handleSetup(interaction, config) {
+    const lang = pickLanguage(config, interaction.guild);
+
     // Ensure interaction hasn't been deferred/replied yet (safety check)
     if (interaction.deferred || interaction.replied) {
         return InteractionHelper.safeReply(interaction, {
-            embeds: [errorEmbed("This interaction has already been processed. Please try the command again.")],
+            embeds: [errorEmbed(t(lang, "wolf.cmd.community.apAdmin.alreadyProcessed"))],
             flags: ["Ephemeral"],
         });
     }
@@ -151,61 +157,62 @@ async function handleSetup(interaction) {
     // Build modal using LabelBuilder API with a native role select dropdown
     const modal = new ModalBuilder()
         .setCustomId('app_setup_modal')
-        .setTitle('Set Up New Application');
+        .setTitle(t(lang, "wolf.cmd.community.apAdmin.setupModalTitle"));
 
     const roleSelect = new RoleSelectMenuBuilder()
         .setCustomId('role_id')
-        .setPlaceholder('Select the role users will apply for')
+        .setPlaceholder(t(lang, "wolf.cmd.community.apAdmin.setupRolePlaceholder"))
         .setRequired(true);
 
     const roleLabel = new LabelBuilder()
-        .setLabel('Application Role')
-        .setDescription('The role that users will be applying for')
+        .setLabel(t(lang, "wolf.cmd.community.apAdmin.setupRoleLabel"))
+        .setDescription(t(lang, "wolf.cmd.community.apAdmin.setupRoleDesc"))
         .setRoleSelectMenuComponent(roleSelect);
 
     const appNameInput = new TextInputBuilder()
         .setCustomId('app_name')
         .setStyle(TextInputStyle.Short)
-        .setPlaceholder('e.g., Moderator, Helper, Developer')
+        .setPlaceholder(t(lang, "wolf.cmd.community.apAdmin.setupAppNamePlaceholder"))
         .setMaxLength(50)
         .setMinLength(1)
         .setRequired(true);
 
     const appNameLabel = new LabelBuilder()
-        .setLabel('Application Name')
+        .setLabel(t(lang, "wolf.cmd.community.apAdmin.setupAppName"))
         .setTextInputComponent(appNameInput);
 
     const q1Input = new TextInputBuilder()
         .setCustomId('app_question_1')
         .setStyle(TextInputStyle.Short)
-        .setPlaceholder('Why do you want this role?')
+        .setPlaceholder(t(lang, "wolf.cmd.community.apAdmin.setupQ1Placeholder"))
         .setMaxLength(100)
         .setMinLength(1)
         .setRequired(true);
 
     const q1Label = new LabelBuilder()
-        .setLabel('Question 1 (required)')
+        .setLabel(t(lang, "wolf.cmd.community.apAdmin.setupQ1"))
         .setTextInputComponent(q1Input);
 
     const q2Input = new TextInputBuilder()
         .setCustomId('app_question_2')
         .setStyle(TextInputStyle.Short)
-        .setPlaceholder('What experience do you have?')
+        .setPlaceholder(t(lang, "wolf.cmd.community.apAdmin.setupQ2Placeholder"))
         .setMaxLength(100)
         .setRequired(false);
 
     const q2Label = new LabelBuilder()
-        .setLabel('Question 2 (optional)')
+        .setLabel(t(lang, "wolf.cmd.community.apAdmin.setupQ2"))
         .setTextInputComponent(q2Input);
 
     const q3Input = new TextInputBuilder()
         .setCustomId('app_question_3')
         .setStyle(TextInputStyle.Short)
+        .setPlaceholder(t(lang, "wolf.cmd.community.apAdmin.setupQ3Placeholder"))
         .setMaxLength(100)
         .setRequired(false);
 
     const q3Label = new LabelBuilder()
-        .setLabel('Question 3 (optional)')
+        .setLabel(t(lang, "wolf.cmd.community.apAdmin.setupQ3"))
         .setTextInputComponent(q3Input);
 
     modal.addLabelComponents(roleLabel, appNameLabel, q1Label, q2Label, q3Label);
@@ -230,7 +237,7 @@ async function handleSetup(interaction) {
 
     if (!roleId) {
         await submitted.reply({
-            embeds: [errorEmbed('No Role Selected', 'You must select a role for the application.')],
+            embeds: [errorEmbed(t(lang, "wolf.cmd.community.apAdmin.noRoleSelected"))],
             flags: ['Ephemeral'],
         });
         return;
@@ -246,7 +253,7 @@ async function handleSetup(interaction) {
     const role = await interaction.guild.roles.fetch(roleId).catch(() => null);
     if (!role) {
         await submitted.reply({
-            embeds: [errorEmbed('Invalid Role', 'The selected role could not be found.')],
+            embeds: [errorEmbed(t(lang, "wolf.cmd.community.apAdmin.invalidRole"))],
             flags: ['Ephemeral'],
         });
         return;
@@ -256,7 +263,7 @@ async function handleSetup(interaction) {
     const existingRoles = await getApplicationRoles(interaction.client, interaction.guild.id);
     if (existingRoles.some(r => r.roleId === roleId)) {
         await submitted.reply({
-            embeds: [errorEmbed('Already Configured', `The role ${role} is already configured as an application.`)],
+            embeds: [errorEmbed(t(lang, "wolf.cmd.community.apAdmin.alreadyConfigured", { role: role.toString() }))],
             flags: ['Ephemeral'],
         });
         return;
@@ -282,20 +289,21 @@ async function handleSetup(interaction) {
 
     await submitted.reply({
         embeds: [successEmbed(
-            '✅ Application Created',
-            `**${appName}** application has been created for ${role}.\n\nYou can customize the log channel, manager roles, questions, and retention period in the dashboard.`,
+            t(lang, "wolf.cmd.community.apAdmin.setupSuccessTitle"),
+            t(lang, "wolf.cmd.community.apAdmin.setupSuccessDesc", { name: appName, role: role.toString() }),
         )],
         flags: ['Ephemeral'],
     });
 
     // Auto-open dashboard with this app selected
     setTimeout(() => {
-        appDashboard.execute(submitted, null, interaction.client, appName);
+        appDashboard.execute(submitted, config, interaction.client, appName);
     }, 500);
 }
 
 
-async function handleReview(interaction) {
+async function handleReview(interaction, config) {
+    const lang = pickLanguage(config, interaction.guild);
     const appId = interaction.options.getString("id");
 
     const application = await getApplication(
@@ -305,7 +313,7 @@ async function handleReview(interaction) {
     );
     if (!application) {
         return InteractionHelper.safeEditReply(interaction, {
-            embeds: [errorEmbed("Application not found.")],
+            embeds: [errorEmbed(t(lang, "wolf.cmd.community.apAdmin.noApp"))],
             flags: ["Ephemeral"],
         });
     }
@@ -313,7 +321,7 @@ async function handleReview(interaction) {
     if (application.status !== "pending") {
         return InteractionHelper.safeEditReply(interaction, {
             embeds: [
-                errorEmbed("This application has already been processed."),
+                errorEmbed(t(lang, "wolf.cmd.community.apAdmin.alreadyProcessed")),
             ],
             flags: ["Ephemeral"],
         });
@@ -321,7 +329,7 @@ async function handleReview(interaction) {
 
     // Show application details with approve/deny buttons
     const appEmbed = createEmbed({
-        title: `📋 Review Application`,
+        title: t(lang, "wolf.cmd.community.apAdmin.reviewTitle"),
         description: `**User:** <@${application.userId}>\n**Application:** ${application.roleName}\n**Application ID:** \`${appId}\``,
         color: 'info',
     });
@@ -331,7 +339,7 @@ async function handleReview(interaction) {
         application.answers.forEach((item, index) => {
             appEmbed.addFields({
                 name: `Q${index + 1}: ${item.question}`,
-                value: item.answer || '*No answer provided*',
+                value: item.answer || (lang === 'es' ? '*Ninguna respuesta proporcionada*' : '*No answer provided*'),
                 inline: false
             });
         });
@@ -340,11 +348,11 @@ async function handleReview(interaction) {
     const buttonRow = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
             .setCustomId(`app_review_approve_${appId}`)
-            .setLabel('Approve')
+            .setLabel(t(lang, "wolf.cmd.community.apAdmin.approveLabel"))
             .setStyle(ButtonStyle.Success),
         new ButtonBuilder()
             .setCustomId(`app_review_deny_${appId}`)
-            .setLabel('Deny')
+            .setLabel(t(lang, "wolf.cmd.community.apAdmin.denyLabel"))
             .setStyle(ButtonStyle.Danger),
     );
 
@@ -371,15 +379,15 @@ async function handleReview(interaction) {
         // Show modal for reason
         const reasonModal = new ModalBuilder()
             .setCustomId(`app_review_reason_${appId}_${isApprove ? 'approve' : 'deny'}`)
-            .setTitle(`${isApprove ? 'Approve' : 'Deny'} Application - Reason`);
+            .setTitle(`${t(lang, isApprove ? "wolf.cmd.community.apAdmin.approvedTitle" : "wolf.cmd.community.apAdmin.deniedTitle")} - ${lang === 'es' ? 'Razón' : 'Reason'}`);
 
         reasonModal.addComponents(
             new ActionRowBuilder().addComponents(
                 new TextInputBuilder()
                     .setCustomId('review_reason')
-                    .setLabel('Reason (optional)')
+                    .setLabel(t(lang, "wolf.cmd.community.apAdmin.reasonLabel"))
                     .setStyle(TextInputStyle.Paragraph)
-                    .setPlaceholder('Provide a reason for this decision...')
+                    .setPlaceholder(t(lang, "wolf.cmd.community.apAdmin.reasonPlaceholder"))
                     .setMaxLength(500)
                     .setRequired(false),
             ),
@@ -397,7 +405,7 @@ async function handleReview(interaction) {
 
             if (!reasonSubmit) return;
 
-            const reason = reasonSubmit.fields.getTextInputValue('review_reason').trim() || "No reason provided.";
+            const reason = reasonSubmit.fields.getTextInputValue('review_reason').trim() || t(lang, "wolf.cmd.community.noReason");
             const action = isApprove ? 'approve' : 'deny';
             const status = isApprove ? 'approved' : 'denied';
 
@@ -417,10 +425,14 @@ async function handleReview(interaction) {
                 const user = await reasonSubmit.client.users.fetch(application.userId);
                 const statusColor = status === "approved" ? getColor('success') : getColor('error');
                 const reviewStatus = getApplicationStatusPresentation(status);
+                const dmMessage = isApprove
+                    ? t(lang, "wolf.cmd.community.notifyApprovedDM", { role: application.roleName })
+                    : t(lang, "wolf.cmd.community.notifyDeniedDM", { role: application.roleName });
+
                 const dmEmbed = createEmbed(
-                    `${reviewStatus.statusEmoji} Application ${reviewStatus.statusLabel}`,
-                    `Your application for **${application.roleName}** has been **${status}**\n` +
-                        `**Note:** ${reason}\n\n` +
+                    `${reviewStatus.statusEmoji} ${t(lang, isApprove ? "wolf.cmd.community.apAdmin.approvedTitle" : "wolf.cmd.community.apAdmin.deniedTitle")}`,
+                    `${dmMessage}\n` +
+                        `**${t(lang, "wolf.cmd.community.apAdmin.reasonLabel")}:** ${reason}\n\n` +
                         `Use \`/apply status id:${appId}\` to view details.`
                 ).setColor(statusColor);
 
@@ -448,11 +460,17 @@ async function handleReview(interaction) {
                             const embed = logMessage.embeds[0];
                             if (embed) {
                                 const reviewStatus = getApplicationStatusPresentation(status);
+                                const localizedStatusLabel = 
+                                    status === 'pending' ? t(lang, 'wolf.cmd.community.statusPending') :
+                                    status === 'approved' ? t(lang, 'wolf.cmd.community.statusApproved') :
+                                    status === 'denied' ? t(lang, 'wolf.cmd.community.statusDenied') :
+                                    t(lang, 'wolf.cmd.community.statusUnknown');
+
                                 const newEmbed = EmbedBuilder.from(embed)
                                     .setColor(statusColor)
                                     .spliceFields(0, 1, {
-                                        name: "Status",
-                                        value: `${reviewStatus.statusEmoji} ${reviewStatus.statusLabel}`,
+                                        name: lang === 'es' ? 'Estado' : 'Status',
+                                        value: `${reviewStatus.statusEmoji} ${localizedStatusLabel}`,
                                     });
 
                                 await logMessage.edit({
@@ -489,11 +507,19 @@ async function handleReview(interaction) {
             }
 
             // Respond to modal submission
+            const localizedStatusLabel = 
+                status === 'pending' ? t(lang, 'wolf.cmd.community.statusPending') :
+                status === 'approved' ? t(lang, 'wolf.cmd.community.statusApproved') :
+                status === 'denied' ? t(lang, 'wolf.cmd.community.statusDenied') :
+                t(lang, 'wolf.cmd.community.statusUnknown');
+
             await reasonSubmit.reply({
                 embeds: [
                     successEmbed(
-                        `Application ${status}`,
-                        `The application has been **${status}**.`,
+                        t(lang, isApprove ? "wolf.cmd.community.apAdmin.approvedTitle" : "wolf.cmd.community.apAdmin.deniedTitle"),
+                        lang === 'es' 
+                            ? `La solicitud ha sido marcada como **${localizedStatusLabel}**.`
+                            : `The application has been marked as **${localizedStatusLabel}**.`
                     ),
                 ],
                 flags: ["Ephemeral"],
@@ -502,7 +528,7 @@ async function handleReview(interaction) {
         } catch (error) {
             logger.error('Error reviewing application:', error);
             await buttonInteraction.reply({
-                embeds: [errorEmbed('Error', 'An error occurred while reviewing the application.')],
+                embeds: [errorEmbed('Error', t(lang, "wolf.cmd.community.apAdmin.reviewError"))],
                 flags: ["Ephemeral"],
             });
         }
@@ -511,8 +537,8 @@ async function handleReview(interaction) {
     collector.on('end', async (collected, reason) => {
         if (reason === 'time') {
             const timeoutEmbed = createEmbed({
-                title: '⏱️ Review Timeout',
-                description: 'The review buttons have timed out.',
+                title: t(lang, "wolf.cmd.community.apAdmin.timeoutTitle"),
+                description: t(lang, "wolf.cmd.community.apAdmin.timeoutDesc"),
                 color: 'warning',
             });
 
@@ -524,7 +550,8 @@ async function handleReview(interaction) {
     });
 }
 
-async function handleList(interaction) {
+async function handleList(interaction, config) {
+    const lang = pickLanguage(config, interaction.guild);
     const status = interaction.options.getString("status");
     const user = interaction.options.getUser("user");
     const limit = interaction.options.getNumber("limit") || 10;
@@ -568,21 +595,22 @@ async function handleList(interaction) {
         
         if (applicationRoles.length > 0) {
             const embed = createEmbed({ 
-                title: "No Applications Found", 
-                description: "No submitted applications found matching the specified criteria.\n\nHowever, the following application roles are configured:" 
+                title: t(lang, "wolf.cmd.community.apAdmin.appRolesTitle"), 
+                description: t(lang, "wolf.cmd.community.apAdmin.appRolesDesc") 
             });
 
             applicationRoles.forEach((appRole, index) => {
                 const role = interaction.guild.roles.cache.get(appRole.roleId);
                 embed.addFields({
                     name: `${index + 1}. ${appRole.name}`,
-                    value: `**Role:** ${role ? `<@&${appRole.roleId}>` : 'Role not found'}\n**Available for applications:** Yes`,
+                    value: `**${lang === 'es' ? 'Rol' : 'Role'}:** ${role ? `<@&${appRole.roleId}>` : (lang === 'es' ? 'Rol no encontrado' : 'Role not found')}\n` +
+                           `**${lang === 'es' ? 'Disponible para solicitudes' : 'Available for applications'}:** ${lang === 'es' ? 'Sí' : 'Yes'}`,
                     inline: false
                 });
             });
 
             embed.setFooter({
-                text: "Users can apply with /apply submit or see available roles with /apply list"
+                text: t(lang, "wolf.cmd.community.apAdmin.appRolesFooter")
             });
 
             return InteractionHelper.safeEditReply(interaction, { embeds: [embed], flags: ["Ephemeral"] });
@@ -590,8 +618,7 @@ async function handleList(interaction) {
             return InteractionHelper.safeEditReply(interaction, {
                 embeds: [
                     errorEmbed(
-                        "No applications found and no application roles configured.\n" +
-                        "Use `/app-admin roles add` to configure application roles first."
+                        t(lang, "wolf.cmd.community.apAdmin.noAppsConfig")
                     ),
                 ],
                 flags: ["Ephemeral"],
@@ -603,23 +630,32 @@ async function handleList(interaction) {
         .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
         .slice(0, limit);
 
-    const embed = createEmbed({ title: "Submitted Applications", description: `Showing ${applications.length} applications.`, });
+    const embed = createEmbed({ 
+        title: t(lang, "wolf.cmd.community.apAdmin.listTitle"), 
+        description: t(lang, "wolf.cmd.community.apAdmin.listDesc", { count: applications.length }), 
+    });
 
     applications.forEach((app) => {
         const statusView = getApplicationStatusPresentation(app?.status);
+        const localizedStatusLabel = 
+            app?.status === 'pending' ? t(lang, 'wolf.cmd.community.statusPending') :
+            app?.status === 'approved' ? t(lang, 'wolf.cmd.community.statusApproved') :
+            app?.status === 'denied' ? t(lang, 'wolf.cmd.community.statusDenied') :
+            t(lang, 'wolf.cmd.community.statusUnknown');
+
         const roleName = app?.roleName || 'Unknown Role';
         const username = app?.username || 'Unknown User';
         const createdAt = app?.createdAt ? new Date(app.createdAt) : null;
         const createdAtDisplay = createdAt && !Number.isNaN(createdAt.getTime())
-            ? createdAt.toLocaleString()
-            : 'Unknown date';
+            ? createdAt.toLocaleString(lang === 'es' ? 'es-ES' : 'en-US')
+            : (lang === 'es' ? 'Fecha desconocida' : 'Unknown date');
 
         embed.addFields({
             name: `${statusView.statusEmoji} ${roleName} - ${username}`,
             value:
                 `**ID:** \`${app.id}\`\n` +
-                `**Status:** ${statusView.statusEmoji} ${statusView.statusLabel}\n` +
-                `**Date:** ${createdAtDisplay}`,
+                `**${lang === 'es' ? 'Estado' : 'Status'}:** ${statusView.statusEmoji} ${localizedStatusLabel}\n` +
+                `**${lang === 'es' ? 'Fecha' : 'Date'}:** ${createdAtDisplay}`,
             inline: true,
         });
     });
@@ -637,14 +673,19 @@ export async function handleApplicationReviewModal(interaction) {
     if (!customId.startsWith('app_review_')) return;
     
     const [, appId, action] = customId.split('_');
-    const reason = interaction.fields.getTextInputValue('reason') || 'No reason provided.';
     const isApprove = action === 'approve';
+    
+    // Resolve guild config language
+    const guildConfig = await getGuildConfig(interaction.client, interaction.guild.id).catch(() => ({}));
+    const lang = pickLanguage(guildConfig, interaction.guild);
+    
+    const reason = interaction.fields.getTextInputValue('reason') || t(lang, "wolf.cmd.community.noReason");
     
     try {
         const application = await getApplication(interaction.client, interaction.guild.id, appId);
         if (!application) {
             return InteractionHelper.safeReply(interaction, {
-                embeds: [errorEmbed('Application not found.')],
+                embeds: [errorEmbed(t(lang, 'wolf.cmd.community.apAdmin.noApp'))],
                 flags: ["Ephemeral"]
             });
         }
@@ -660,10 +701,14 @@ export async function handleApplicationReviewModal(interaction) {
         try {
             const user = await interaction.client.users.fetch(application.userId);
             const reviewStatus = getApplicationStatusPresentation(status);
+            const dmMessage = isApprove
+                ? t(lang, "wolf.cmd.community.notifyApprovedDM", { role: application.roleName })
+                : t(lang, "wolf.cmd.community.notifyDeniedDM", { role: application.roleName });
+            
             const dmEmbed = createEmbed(
-                `${reviewStatus.statusEmoji} Application ${reviewStatus.statusLabel}`,
-                `Your application for **${application.roleName}** has been **${status}**.\n` +
-                `**Note:** ${reason}\n\n` +
+                `${reviewStatus.statusEmoji} ${t(lang, isApprove ? "wolf.cmd.community.apAdmin.approvedTitle" : "wolf.cmd.community.apAdmin.deniedTitle")}`,
+                `${dmMessage}\n` +
+                `**${t(lang, "wolf.cmd.community.apAdmin.reasonLabel")}:** ${reason}\n\n` +
                 `Use \`/apply status id:${appId}\` to view details.`,
                 isApprove ? '#00FF00' : '#FF0000'
             );
@@ -682,11 +727,17 @@ export async function handleApplicationReviewModal(interaction) {
                         const embed = logMessage.embeds[0];
                         if (embed) {
                             const reviewStatus = getApplicationStatusPresentation(status);
+                            const localizedStatusLabel = 
+                                status === 'pending' ? t(lang, 'wolf.cmd.community.statusPending') :
+                                status === 'approved' ? t(lang, 'wolf.cmd.community.statusApproved') :
+                                status === 'denied' ? t(lang, 'wolf.cmd.community.statusDenied') :
+                                t(lang, 'wolf.cmd.community.statusUnknown');
+
                             const newEmbed = EmbedBuilder.from(embed)
                                 .setColor(isApprove ? '#00FF00' : '#FF0000')
                                 .spliceFields(0, 1, {
-                                    name: 'Status',
-                                    value: `${reviewStatus.statusEmoji} ${reviewStatus.statusLabel}`
+                                    name: lang === 'es' ? 'Estado' : 'Status',
+                                    value: `${reviewStatus.statusEmoji} ${localizedStatusLabel}`
                                 });
                             
                             await logMessage.edit({
@@ -710,11 +761,20 @@ export async function handleApplicationReviewModal(interaction) {
             }
         }
         
+        const reviewStatus = getApplicationStatusPresentation(status);
+        const localizedStatusLabel = 
+            status === 'pending' ? t(lang, 'wolf.cmd.community.statusPending') :
+            status === 'approved' ? t(lang, 'wolf.cmd.community.statusApproved') :
+            status === 'denied' ? t(lang, 'wolf.cmd.community.statusDenied') :
+            t(lang, 'wolf.cmd.community.statusUnknown');
+
         await InteractionHelper.safeEditReply(interaction, {
             embeds: [
                 successEmbed(
-                    `${getApplicationStatusPresentation(status).statusEmoji} Application ${getApplicationStatusPresentation(status).statusLabel}`,
-                    `The application has been marked as ${getApplicationStatusPresentation(status).statusLabel}.`
+                    `${reviewStatus.statusEmoji} ${t(lang, isApprove ? "wolf.cmd.community.apAdmin.approvedTitle" : "wolf.cmd.community.apAdmin.deniedTitle")}`,
+                    lang === 'es' 
+                        ? `La solicitud ha sido marcada como **${localizedStatusLabel}**.`
+                        : `The application has been marked as **${localizedStatusLabel}**.`
                 )
             ],
             flags: ["Ephemeral"]
@@ -723,7 +783,7 @@ export async function handleApplicationReviewModal(interaction) {
     } catch (error) {
         logger.error('Error processing application review:', error);
         await InteractionHelper.safeEditReply(interaction, {
-            embeds: [errorEmbed('An error occurred while processing the application.')],
+            embeds: [errorEmbed(t(lang, 'wolf.cmd.community.apAdmin.processingError'))],
             flags: ["Ephemeral"]
         });
     }
