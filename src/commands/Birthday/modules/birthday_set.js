@@ -1,12 +1,13 @@
-import { MessageFlags } from 'discord.js';
-import { createEmbed, errorEmbed, successEmbed } from '../../../utils/embeds.js';
+import { successEmbed } from '../../../utils/embeds.js';
 import { setBirthday } from '../../../services/birthdayService.js';
 import { logger } from '../../../utils/logger.js';
 import { handleInteractionError } from '../../../utils/errorHandler.js';
-
 import { InteractionHelper } from '../../../utils/interactionHelper.js';
+import { t, pickLanguage } from '../../../services/i18n.js';
+
 export default {
     async execute(interaction, config, client) {
+        const lang = pickLanguage(config, interaction.guild);
         try {
             await InteractionHelper.safeDefer(interaction);
 
@@ -15,13 +16,12 @@ export default {
             const userId = interaction.user.id;
             const guildId = interaction.guildId;
 
-            
             const result = await setBirthday(client, guildId, userId, month, day);
-            
+
             await InteractionHelper.safeEditReply(interaction, {
                 embeds: [successEmbed(
-                    `Your birthday has been set to **${result.data.monthName} ${result.data.day}**!`,
-                    "Birthday Set! 🎂"
+                    t(lang, 'wolf.cmd.birthday.setTitle'),
+                    t(lang, 'wolf.cmd.birthday.setDesc', { month: result.data.monthName, day: result.data.day })
                 )]
             });
         } catch (error) {
@@ -32,13 +32,7 @@ export default {
                 guildId: interaction.guildId,
                 commandName: 'birthday_set'
             });
-            await handleInteractionError(interaction, error, {
-                commandName: 'birthday_set',
-                source: 'birthday_set_module'
-            });
+            await handleInteractionError(interaction, error, { commandName: 'birthday_set', source: 'birthday_set_module' });
         }
     }
 };
-
-
-

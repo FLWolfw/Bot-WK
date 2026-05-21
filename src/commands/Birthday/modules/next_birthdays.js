@@ -1,34 +1,32 @@
-import { MessageFlags } from 'discord.js';
-import { createEmbed, errorEmbed, successEmbed } from '../../../utils/embeds.js';
+import { createEmbed } from '../../../utils/embeds.js';
 import { getUpcomingBirthdays } from '../../../services/birthdayService.js';
 import { deleteBirthday } from '../../../utils/database.js';
 import { logger } from '../../../utils/logger.js';
 import { handleInteractionError } from '../../../utils/errorHandler.js';
-
 import { InteractionHelper } from '../../../utils/interactionHelper.js';
+import { t, pickLanguage } from '../../../services/i18n.js';
+
 export default {
     async execute(interaction, config, client) {
+        const lang = pickLanguage(config, interaction.guild);
         try {
             await InteractionHelper.safeDefer(interaction);
-            
-            
+
             const next5 = await getUpcomingBirthdays(client, interaction.guildId, 5);
 
             if (next5.length === 0) {
                 return await InteractionHelper.safeEditReply(interaction, {
-                    embeds: [
-                        createEmbed({
-                            title: '❌ No Birthdays Found',
-                            description: 'No birthdays have been set up in this server yet. Use `/birthday set` to add birthdays!',
-                            color: 'error'
-                        })
-                    ]
+                    embeds: [createEmbed({
+                        title: t(lang, 'wolf.cmd.birthday.noUpcomingTitle'),
+                        description: t(lang, 'wolf.cmd.birthday.noUpcomingDesc'),
+                        color: 'error'
+                    })]
                 });
             }
 
             const embed = createEmbed({
-                title: '🎂 Next 5 Upcoming Birthdays',
-                description: `Here are the next 5 birthdays in ${interaction.guild.name}:`,
+                title: t(lang, 'wolf.cmd.birthday.nextTitle'),
+                description: t(lang, 'wolf.cmd.birthday.nextDesc', { guild: interaction.guild.name }),
                 color: 'info'
             });
 
@@ -43,39 +41,41 @@ export default {
 
                 let timeUntil = '';
                 if (birthday.daysUntil === 0) {
-                    timeUntil = '🎉 **Today!**';
+                    timeUntil = t(lang, 'wolf.cmd.birthday.timeToday');
                 } else if (birthday.daysUntil === 1) {
-                    timeUntil = '📅 **Tomorrow!**';
+                    timeUntil = t(lang, 'wolf.cmd.birthday.timeTomorrow');
                 } else {
-                    timeUntil = `In ${birthday.daysUntil} day${birthday.daysUntil > 1 ? 's' : ''}`;
+                    const key = birthday.daysUntil > 1 ? 'wolf.cmd.birthday.timeInDays' : 'wolf.cmd.birthday.timeInDay';
+                    timeUntil = t(lang, key, { n: birthday.daysUntil });
                 }
+
+                const dateLabel = t(lang, 'wolf.cmd.birthday.entryDateLabel');
+                const timeLabel = t(lang, 'wolf.cmd.birthday.entryTimeLabel');
 
                 embed.addFields({
                     name: `${displayIndex}. ${member.displayName}`,
-                    value: `<@${birthday.userId}>\n📅 **Date:** ${birthday.monthName} ${birthday.day}\n⏰ **Time:** ${timeUntil}`,
+                    value: `<@${birthday.userId}>\n${dateLabel} ${birthday.monthName} ${birthday.day}\n${timeLabel} ${timeUntil}`,
                     inline: false
                 });
             }
 
             if (displayIndex === 0) {
                 return await InteractionHelper.safeEditReply(interaction, {
-                    embeds: [
-                        createEmbed({
-                            title: '❌ No Upcoming Birthdays',
-                            description: 'No upcoming birthdays found for current server members.',
-                            color: 'error'
-                        })
-                    ]
+                    embeds: [createEmbed({
+                        title: t(lang, 'wolf.cmd.birthday.noCurrentUpcomingTitle'),
+                        description: t(lang, 'wolf.cmd.birthday.noCurrentUpcomingDesc'),
+                        color: 'error'
+                    })]
                 });
             }
 
             embed.setFooter({
-                text: 'Use /birthday set to add your birthday!',
+                text: t(lang, 'wolf.cmd.birthday.nextFooter'),
                 iconURL: interaction.guild.iconURL()
             });
 
             await InteractionHelper.safeEditReply(interaction, { embeds: [embed] });
-            
+
             logger.info('Next birthdays retrieved successfully', {
                 userId: interaction.user.id,
                 guildId: interaction.guildId,
@@ -90,13 +90,7 @@ export default {
                 guildId: interaction.guildId,
                 commandName: 'next_birthdays'
             });
-            await handleInteractionError(interaction, error, {
-                commandName: 'next_birthdays',
-                source: 'next_birthdays_module'
-            });
+            await handleInteractionError(interaction, error, { commandName: 'next_birthdays', source: 'next_birthdays_module' });
         }
     }
 };
-
-
-

@@ -1,37 +1,35 @@
-import { MessageFlags } from 'discord.js';
-import { createEmbed, errorEmbed, successEmbed } from '../../../utils/embeds.js';
+import { createEmbed } from '../../../utils/embeds.js';
 import { getAllBirthdays } from '../../../services/birthdayService.js';
 import { deleteBirthday } from '../../../utils/database.js';
 import { logger } from '../../../utils/logger.js';
 import { handleInteractionError } from '../../../utils/errorHandler.js';
-
 import { InteractionHelper } from '../../../utils/interactionHelper.js';
+import { t, pickLanguage } from '../../../services/i18n.js';
+
 export default {
     async execute(interaction, config, client) {
+        const lang = pickLanguage(config, interaction.guild);
         try {
             await InteractionHelper.safeDefer(interaction);
 
             const guildId = interaction.guildId;
-            
-            
             const sortedBirthdays = await getAllBirthdays(client, guildId);
 
             if (sortedBirthdays.length === 0) {
                 return await InteractionHelper.safeEditReply(interaction, {
                     embeds: [createEmbed({
-                        title: '❌ No Birthdays',
-                        description: 'No birthdays have been set in this server yet.',
+                        title: t(lang, 'wolf.cmd.birthday.noBirthdaysTitle'),
+                        description: t(lang, 'wolf.cmd.birthday.noBirthdaysDesc'),
                         color: 'error'
                     })]
                 });
             }
 
             const embed = createEmbed({
-                title: "🎂 Server Birthdays",
+                title: t(lang, 'wolf.cmd.birthday.serverBirthdaysTitle'),
                 color: 'info'
             });
 
-            // Batch fetch to verify which users are still in the guild
             const userIds = sortedBirthdays.map(b => b.userId);
             const fetchedMembers = await interaction.guild.members.fetch({ user: userIds }).catch(() => null);
 
@@ -48,7 +46,6 @@ export default {
                 birthdayList += `${displayIndex}. <@${birthday.userId}> - ${birthday.monthName} ${birthday.day}\n`;
             }
 
-            // Clean up birthday entries for members who left the server
             if (fetchedMembers && staleUserIds.length > 0) {
                 for (const userId of staleUserIds) {
                     deleteBirthday(client, guildId, userId).catch(() => null);
@@ -58,20 +55,20 @@ export default {
             if (displayIndex === 0) {
                 return await InteractionHelper.safeEditReply(interaction, {
                     embeds: [createEmbed({
-                        title: '❌ No Birthdays',
-                        description: 'No birthdays have been set by current server members.',
+                        title: t(lang, 'wolf.cmd.birthday.noBirthdaysTitle'),
+                        description: t(lang, 'wolf.cmd.birthday.noCurrentDesc'),
                         color: 'error'
                     })]
                 });
             }
 
-            birthdayList = `**${displayIndex} birthday${displayIndex !== 1 ? 's' : ''} in ${interaction.guild.name}**\n\n` + birthdayList;
+            birthdayList = t(lang, 'wolf.cmd.birthday.listHeader', { n: displayIndex, guild: interaction.guild.name }) + birthdayList;
 
             embed.setDescription(birthdayList);
-            embed.setFooter({ text: `Total: ${displayIndex} birthday${displayIndex !== 1 ? 's' : ''}` });
+            embed.setFooter({ text: t(lang, 'wolf.cmd.birthday.listFooter', { n: displayIndex }) });
 
             await InteractionHelper.safeEditReply(interaction, { embeds: [embed] });
-            
+
             logger.info('Birthday list retrieved successfully', {
                 userId: interaction.user.id,
                 guildId,
@@ -87,13 +84,7 @@ export default {
                 guildId: interaction.guildId,
                 commandName: 'birthday_list'
             });
-            await handleInteractionError(interaction, error, {
-                commandName: 'birthday_list',
-                source: 'birthday_list_module'
-            });
+            await handleInteractionError(interaction, error, { commandName: 'birthday_list', source: 'birthday_list_module' });
         }
     }
 };
-
-
-

@@ -1,33 +1,33 @@
-import { MessageFlags } from 'discord.js';
-import { createEmbed, errorEmbed, successEmbed } from '../../../utils/embeds.js';
+import { createEmbed, successEmbed } from '../../../utils/embeds.js';
 import { deleteBirthday } from '../../../services/birthdayService.js';
 import { logger } from '../../../utils/logger.js';
 import { handleInteractionError } from '../../../utils/errorHandler.js';
-
 import { InteractionHelper } from '../../../utils/interactionHelper.js';
+import { t, pickLanguage } from '../../../services/i18n.js';
+
 export default {
     async execute(interaction, config, client) {
+        const lang = pickLanguage(config, interaction.guild);
         try {
             await InteractionHelper.safeDefer(interaction);
 
             const userId = interaction.user.id;
             const guildId = interaction.guildId;
 
-            
             const result = await deleteBirthday(client, guildId, userId);
 
             if (result.success) {
                 await InteractionHelper.safeEditReply(interaction, {
                     embeds: [successEmbed(
-                        "Your birthday has been successfully removed from the server.",
-                        "Birthday Removed 🗑️"
+                        t(lang, 'wolf.cmd.birthday.removedTitle'),
+                        t(lang, 'wolf.cmd.birthday.removedDesc')
                     )]
                 });
             } else if (result.notFound) {
                 await InteractionHelper.safeEditReply(interaction, {
                     embeds: [createEmbed({
-                        title: '❌ No Birthday Found',
-                        description: "You don't have a birthday set to remove.",
+                        title: t(lang, 'wolf.cmd.birthday.notSetTitle'),
+                        description: t(lang, 'wolf.cmd.birthday.notSetDesc'),
                         color: 'error'
                     })]
                 });
@@ -40,13 +40,7 @@ export default {
                 guildId: interaction.guildId,
                 commandName: 'birthday_remove'
             });
-            await handleInteractionError(interaction, error, {
-                commandName: 'birthday_remove',
-                source: 'birthday_remove_module'
-            });
+            await handleInteractionError(interaction, error, { commandName: 'birthday_remove', source: 'birthday_remove_module' });
         }
     }
 };
-
-
-

@@ -3,12 +3,18 @@ import { errorEmbed, successEmbed } from '../../../utils/embeds.js';
 import { getGuildConfig, setGuildConfig } from '../../../services/guildConfig.js';
 import { InteractionHelper } from '../../../utils/interactionHelper.js';
 import { logger } from '../../../utils/logger.js';
+import { t, pickLanguage } from '../../../services/i18n.js';
 
 export default {
     async execute(interaction, config, client) {
+        const lang = pickLanguage(config, interaction.guild);
+
         if (!interaction.member.permissions.has(PermissionsBitField.Flags.ManageGuild)) {
             return InteractionHelper.safeReply(interaction, {
-                embeds: [errorEmbed('Permission Denied', 'You need **Manage Server** permissions to configure the birthday channel.')],
+                embeds: [errorEmbed(
+                    t(lang, 'wolf.cmd.birthday.permDeniedTitle'),
+                    t(lang, 'wolf.cmd.birthday.permDeniedDesc')
+                )],
                 flags: MessageFlags.Ephemeral,
             });
         }
@@ -22,21 +28,30 @@ export default {
                 guildConfig.birthdayChannelId = channel.id;
                 await setGuildConfig(client, guildId, guildConfig);
                 return InteractionHelper.safeReply(interaction, {
-                    embeds: [successEmbed('🎂 Birthday Announcements Enabled', `Birthday announcements will now be posted in ${channel}.`)],
+                    embeds: [successEmbed(
+                        t(lang, 'wolf.cmd.birthday.enabledTitle'),
+                        t(lang, 'wolf.cmd.birthday.enabledDesc', { channel })
+                    )],
                     flags: MessageFlags.Ephemeral,
                 });
             } else {
                 guildConfig.birthdayChannelId = null;
                 await setGuildConfig(client, guildId, guildConfig);
                 return InteractionHelper.safeReply(interaction, {
-                    embeds: [successEmbed('🎂 Birthday Announcements Disabled', 'No channel provided — birthday announcements have been disabled.')],
+                    embeds: [successEmbed(
+                        t(lang, 'wolf.cmd.birthday.disabledTitle'),
+                        t(lang, 'wolf.cmd.birthday.disabledDesc')
+                    )],
                     flags: MessageFlags.Ephemeral,
                 });
             }
         } catch (error) {
             logger.error('birthday_setchannel error:', error);
             return InteractionHelper.safeReply(interaction, {
-                embeds: [errorEmbed('Configuration Error', 'Could not save the birthday channel configuration.')],
+                embeds: [errorEmbed(
+                    t(lang, 'wolf.cmd.birthday.configErrorTitle'),
+                    t(lang, 'wolf.cmd.birthday.configErrorDesc')
+                )],
                 flags: MessageFlags.Ephemeral,
             });
         }
