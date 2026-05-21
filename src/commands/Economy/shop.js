@@ -2,6 +2,7 @@ import { SlashCommandBuilder, MessageFlags } from 'discord.js';
 import { errorEmbed } from '../../utils/embeds.js';
 import { logger } from '../../utils/logger.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
+import { t, pickLanguage } from '../../services/i18n.js';
 
 import shopBrowse from './modules/shop_browse.js';
 import shopConfigSetrole from './modules/shop_config_setrole.js';
@@ -33,6 +34,7 @@ export default {
         ),
 
     async execute(interaction, config, client) {
+        const lang = pickLanguage(config, interaction.guild);
         try {
             const subcommandGroup = interaction.options.getSubcommandGroup(false);
             const subcommand = interaction.options.getSubcommand();
@@ -46,13 +48,16 @@ export default {
             }
 
             return InteractionHelper.safeReply(interaction, {
-                embeds: [errorEmbed('Error', 'Unknown subcommand.')],
+                embeds: [errorEmbed(
+                    t(lang, 'wolf.cmd.economy.shopErrorTitle'),
+                    t(lang, 'wolf.cmd.economy.shopUnknownSub')
+                )],
                 flags: MessageFlags.Ephemeral,
             });
         } catch (error) {
             logger.error('shop command error:', error);
             await InteractionHelper.safeReply(interaction, {
-                content: '❌ An error occurred while running the shop command.',
+                content: t(lang, 'wolf.cmd.economy.shopError'),
                 flags: MessageFlags.Ephemeral,
             }).catch(() => {});
         }

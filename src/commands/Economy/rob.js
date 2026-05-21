@@ -1,9 +1,9 @@
 import { SlashCommandBuilder } from 'discord.js';
-import { createEmbed, errorEmbed, successEmbed, infoEmbed, warningEmbed } from '../../utils/embeds.js';
+import { successEmbed, errorEmbed, warningEmbed } from '../../utils/embeds.js';
 import { getEconomyData, setEconomyData } from '../../utils/economy.js';
 import { withErrorHandling, createError, ErrorTypes } from '../../utils/errorHandler.js';
-import { MessageTemplates } from '../../utils/messageTemplates.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
+import { t, pickLanguage } from '../../services/i18n.js';
 
 const ROB_COOLDOWN = 4 * 60 * 60 * 1000;
 const BASE_ROB_SUCCESS_CHANCE = 0.25;
@@ -22,135 +22,106 @@ export default {
         ),
 
     execute: withErrorHandling(async (interaction, config, client) => {
+        const lang = pickLanguage(config, interaction.guild);
         const deferred = await InteractionHelper.safeDefer(interaction);
         if (!deferred) return;
-            
-            const robberId = interaction.user.id;
-            const victimUser = interaction.options.getUser("user");
-            const guildId = interaction.guildId;
-            const now = Date.now();
 
-            if (robberId === victimUser.id) {
-                throw createError(
-                    "Cannot rob self",
-                    ErrorTypes.VALIDATION,
-                    "You cannot rob yourself.",
-                    { robberId, victimId: victimUser.id }
-                );
-            }
-            
-            if (victimUser.bot) {
-                throw createError(
-                    "Cannot rob bot",
-                    ErrorTypes.VALIDATION,
-                    "You cannot rob a bot.",
-                    { victimId: victimUser.id, isBot: true }
-                );
-            }
+        const robberId = interaction.user.id;
+        const victimUser = interaction.options.getUser("user");
+        const guildId = interaction.guildId;
+        const now = Date.now();
 
-            const robberData = await getEconomyData(client, guildId, robberId);
-            const victimData = await getEconomyData(client, guildId, victimUser.id);
-            
-            if (!robberData || !victimData) {
-                throw createError(
-                    "Failed to load economy data",
-                    ErrorTypes.DATABASE,
-                    "Failed to load economy data. Please try again later.",
-                    { robberId: !!robberData, victimId: !!victimData, guildId }
-                );
-            }
-            
-            const lastRob = robberData.lastRob || 0;
+        if (robberId === victimUser.id) {
+            throw createError("Cannot rob self", ErrorTypes.VALIDATION,
+                t(lang, 'wolf.cmd.economy.robNoSelf'),
+                { robberId, victimId: victimUser.id });
+        }
 
-            if (now < lastRob + ROB_COOLDOWN) {
-                const remaining = lastRob + ROB_COOLDOWN - now;
-                const hours = Math.floor(remaining / (1000 * 60 * 60));
-                const minutes = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60));
+        if (victimUser.bot) {
+            throw createError("Cannot rob bot", ErrorTypes.VALIDATION,
+                t(lang, 'wolf.cmd.economy.robNoBot'),
+                { victimId: victimUser.id, isBot: true });
+        }
 
-                throw createError(
-                    "Robbery cooldown active",
-                    ErrorTypes.RATE_LIMIT,
-                    `You need to lay low. Wait **${hours}h ${minutes}m** before attempting another robbery.`,
-                    { remaining, hours, minutes, cooldownType: 'rob' }
-                );
-            }
+        const robberData = await getEconomyData(client, guildId, robberId);
+        const victimData = await getEconomyData(client, guildId, victimUser.id);
 
-            if (victimData.wallet < 500) {
-                throw createError(
-                    "Victim too poor",
-                    ErrorTypes.VALIDATION,
-                    `${victimUser.username} is too poor. They need at least $500 cash to be worth robbing.`,
-                    { victimWallet: victimData.wallet, required: 500 }
-                );
-            }
+        if (!robberData || !victimData) {
+            throw createError("Failed to load economy data", ErrorTypes.DATABASE,
+                t(lang, 'wolf.cmd.economy.robFailLoad'),
+                { robberId: !!robberData, victimId: !!victimData, guildId });
+        }
 
-            const hasSafe = victimData.inventory["personal_safe"] || 0;
+        const lastRob = robberData.lastRob || 0;
 
-            if (hasSafe > 0) {
-                robberData.lastRob = now;
-                await setEconomyData(client, guildId, robberId, robberData);
+        if (now < lastRob + ROB_COOLDOWN) {
+            const remaining = lastRob + ROB_COOLDOWN - now;
+            const hours = Math.floor(remaining / (1000 * 60 * 60));
+            const minutes = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60));
 
-                return await InteractionHelper.safeEditReply(interaction, {
-                    embeds: [
-                        MessageTemplates.ERRORS.CONFIGURATION_REQUIRED(
-                            "robbery protection",
-                            `${victimUser.username} was prepared! Your attempt failed because they own a **Personal Safe**. You got away clean but didn't gain anything.`
-                        )
-                    ],
-                });
-            }
+            throw createError("Robbery cooldown active", ErrorTypes.RATE_LIMIT,
+                t(lang, 'wolf.cmd.economy.robCooldown', { hours, minutes }),
+                { remaining, hours, minutes, cooldownType: 'rob' });
+        }
 
-            const isSuccessful = Math.random() < BASE_ROB_SUCCESS_CHANCE;
-            let resultEmbed;
+        if (victimData.wallet < 500) {
+            throw createError("Victim too poor", ErrorTypes.VALIDATION,
+                t(lang, 'wolf.cmd.economy.robTooPoor', { user: victimUser.username }),
+                { victimWallet: victimData.wallet, required: 500 });
+        }
 
-            if (isSuccessful) {
-                const amountStolen = Math.floor(victimData.wallet * ROB_PERCENTAGE);
+        const hasSafe = victimData.inventory["personal_safe"] || 0;
 
-                robberData.wallet = (robberData.wallet || 0) + amountStolen;
-                victimData.wallet = (victimData.wallet || 0) - amountStolen;
-
-                resultEmbed = MessageTemplates.SUCCESS.DATA_UPDATED(
-                    "robbery",
-                    `You successfully stole **$${amountStolen.toLocaleString()}** from ${victimUser.username}!`
-                );
-            } else {
-                const fineAmount = Math.floor((robberData.wallet || 0) * FINE_PERCENTAGE);
-
-                if ((robberData.wallet || 0) < fineAmount) {
-                    robberData.wallet = 0;
-                } else {
-                    robberData.wallet = (robberData.wallet || 0) - fineAmount;
-                }
-
-                resultEmbed = MessageTemplates.ERRORS.INSUFFICIENT_PERMISSIONS(
-                    "robbery failed",
-                    `You failed the robbery and were caught! You were fined **$${fineAmount.toLocaleString()}** of your own cash.`
-                );
-            }
-
+        if (hasSafe > 0) {
             robberData.lastRob = now;
-
             await setEconomyData(client, guildId, robberId, robberData);
-            await setEconomyData(client, guildId, victimUser.id, victimData);
 
-            resultEmbed
-                .addFields(
-                    {
-                        name: `Your New Cash (${interaction.user.username})`,
-                        value: `$${robberData.wallet.toLocaleString()}`,
-                        inline: true,
-                    },
-                    {
-                        name: `Victim's New Cash (${victimUser.username})`,
-                        value: `$${victimData.wallet.toLocaleString()}`,
-                        inline: true,
-                    },
-                )
-                .setFooter({ text: `Next robbery available in 4 hours.` });
+            return await InteractionHelper.safeEditReply(interaction, {
+                embeds: [warningEmbed(
+                    t(lang, 'wolf.cmd.economy.robSafeTitle'),
+                    t(lang, 'wolf.cmd.economy.robSafe', { user: victimUser.username })
+                )],
+            });
+        }
 
-            await InteractionHelper.safeEditReply(interaction, { embeds: [resultEmbed] });
+        const isSuccessful = Math.random() < BASE_ROB_SUCCESS_CHANCE;
+        let resultEmbed;
+
+        if (isSuccessful) {
+            const amountStolen = Math.floor(victimData.wallet * ROB_PERCENTAGE);
+            robberData.wallet = (robberData.wallet || 0) + amountStolen;
+            victimData.wallet = (victimData.wallet || 0) - amountStolen;
+
+            resultEmbed = successEmbed(
+                t(lang, 'wolf.cmd.economy.robSuccessTitle'),
+                t(lang, 'wolf.cmd.economy.robSuccessDesc', { amount: amountStolen.toLocaleString(), user: victimUser.username })
+            );
+        } else {
+            const fineAmount = Math.floor((robberData.wallet || 0) * FINE_PERCENTAGE);
+            if ((robberData.wallet || 0) < fineAmount) {
+                robberData.wallet = 0;
+            } else {
+                robberData.wallet = (robberData.wallet || 0) - fineAmount;
+            }
+
+            resultEmbed = errorEmbed(
+                t(lang, 'wolf.cmd.economy.robFailTitle'),
+                t(lang, 'wolf.cmd.economy.robFailDesc', { fine: fineAmount.toLocaleString() })
+            );
+        }
+
+        robberData.lastRob = now;
+
+        await setEconomyData(client, guildId, robberId, robberData);
+        await setEconomyData(client, guildId, victimUser.id, victimData);
+
+        resultEmbed
+            .addFields(
+                { name: t(lang, 'wolf.cmd.economy.robYourCash', { user: interaction.user.username }), value: `$${robberData.wallet.toLocaleString()}`, inline: true },
+                { name: t(lang, 'wolf.cmd.economy.robVictimCash', { user: victimUser.username }), value: `$${victimData.wallet.toLocaleString()}`, inline: true },
+            )
+            .setFooter({ text: t(lang, 'wolf.cmd.economy.robFooter') });
+
+        await InteractionHelper.safeEditReply(interaction, { embeds: [resultEmbed] });
     }, { command: 'rob' })
 };
-
-
-

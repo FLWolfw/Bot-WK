@@ -1,10 +1,9 @@
 import { SlashCommandBuilder } from 'discord.js';
-import { createEmbed, errorEmbed, successEmbed, infoEmbed, warningEmbed } from '../../utils/embeds.js';
+import { successEmbed, errorEmbed } from '../../utils/embeds.js';
 import { getEconomyData, setEconomyData } from '../../utils/economy.js';
-import { botConfig } from '../../config/bot.js';
 import { withErrorHandling, createError, ErrorTypes } from '../../utils/errorHandler.js';
-import { MessageTemplates } from '../../utils/messageTemplates.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
+import { t, pickLanguage } from '../../services/i18n.js';
 
 const COOLDOWN = 30 * 60 * 1000;
 const MIN_WIN = 50;
@@ -17,87 +16,65 @@ export default {
         .setDescription('Beg for a small amount of money'),
 
     execute: withErrorHandling(async (interaction, config, client) => {
+        const lang = pickLanguage(config, interaction.guild);
         const deferred = await InteractionHelper.safeDefer(interaction);
         if (!deferred) return;
-            
-            const userId = interaction.user.id;
-            const guildId = interaction.guildId;
 
-            let userData = await getEconomyData(client, guildId, userId);
-            
-            if (!userData) {
-                throw createError(
-                    "Failed to load economy data",
-                    ErrorTypes.DATABASE,
-                    "Failed to load your economy data. Please try again later.",
-                    { userId, guildId }
-                );
-            }
+        const userId = interaction.user.id;
+        const guildId = interaction.guildId;
 
-            const lastBeg = userData.lastBeg || 0;
-            const remainingTime = lastBeg + COOLDOWN - Date.now();
+        let userData = await getEconomyData(client, guildId, userId);
 
-            if (remainingTime > 0) {
-                const minutes = Math.floor(remainingTime / 60000);
-                const seconds = Math.floor((remainingTime % 60000) / 1000);
+        if (!userData) {
+            throw createError(
+                "Failed to load economy data",
+                ErrorTypes.DATABASE,
+                t(lang, 'wolf.cmd.economy.failedToLoad'),
+                { userId, guildId }
+            );
+        }
 
-                let timeMessage =
-                    minutes > 0 ? `${minutes} minute(s)` : `${seconds} second(s)`;
+        const lastBeg = userData.lastBeg || 0;
+        const remainingTime = lastBeg + COOLDOWN - Date.now();
 
-                throw createError(
-                    "Beg cooldown active",
-                    ErrorTypes.RATE_LIMIT,
-                    `You are tired from begging! Try again in **${timeMessage}**.`,
-                    { remainingTime, minutes, seconds, cooldownType: 'beg' }
-                );
-            }
+        if (remainingTime > 0) {
+            const minutes = Math.floor(remainingTime / 60000);
+            const seconds = Math.floor((remainingTime % 60000) / 1000);
+            const timeMessage = minutes > 0 ? `${minutes}m` : `${seconds}s`;
 
-            const success = Math.random() < SUCCESS_CHANCE;
+            throw createError(
+                "Beg cooldown active",
+                ErrorTypes.RATE_LIMIT,
+                t(lang, 'wolf.cmd.economy.begCooldown', { time: timeMessage }),
+                { remainingTime, minutes, seconds, cooldownType: 'beg' }
+            );
+        }
 
-            let replyEmbed;
-            let newCash = userData.wallet;
+        const success = Math.random() < SUCCESS_CHANCE;
 
-            if (success) {
-                const amountWon =
-                    Math.floor(Math.random() * (MAX_WIN - MIN_WIN + 1)) + MIN_WIN;
+        let replyEmbed;
+        let newCash = userData.wallet;
 
-                newCash += amountWon;
+        if (success) {
+            const amountWon = Math.floor(Math.random() * (MAX_WIN - MIN_WIN + 1)) + MIN_WIN;
+            newCash += amountWon;
 
-                const successMessages = [
-                    `A kind stranger drops **$${amountWon.toLocaleString()}** into your cup.`,
-                    `You spotted an unattended wallet! You grab **$${amountWon.toLocaleString()}** and run.`,
-                    `Someone took pity on you and gave you **$${amountWon.toLocaleString()}**!`,
-                    `You found **$${amountWon.toLocaleString()}** under a park bench.`,
-                ];
+            const idx = Math.floor(Math.random() * 4) + 1;
+            const msg = t(lang, `wolf.cmd.economy.begSuccess${idx}`, { amount: amountWon.toLocaleString() });
 
-                replyEmbed = MessageTemplates.SUCCESS.DATA_UPDATED(
-                    "begging",
-                    successMessages[
-                        Math.floor(Math.random() * successMessages.length)
-                    ]
-                );
-            } else {
-                const failMessages = [
-                    "The police chased you off. You got nothing.",
-                    "Someone yelled, 'Get a job!' and walked past.",
-                    "A squirrel stole the single coin you had.",
-                    "You tried to beg, but you were too embarrassed and gave up.",
-                ];
+            replyEmbed = successEmbed(t(lang, 'wolf.cmd.economy.begSuccessTitle'), msg);
+        } else {
+            const idx = Math.floor(Math.random() * 4) + 1;
+            const msg = t(lang, `wolf.cmd.economy.begFail${idx}`);
 
-                replyEmbed = MessageTemplates.ERRORS.INSUFFICIENT_FUNDS(
-                    "nothing",
-                    "You failed to get any money from begging."
-                );
-                replyEmbed.data.description = failMessages[Math.floor(Math.random() * failMessages.length)];
-            }
+            replyEmbed = errorEmbed(t(lang, 'wolf.cmd.economy.begFailTitle'), msg);
+        }
 
-            userData.wallet = newCash;
-userData.lastBeg = Date.now();
+        userData.wallet = newCash;
+        userData.lastBeg = Date.now();
 
-            await setEconomyData(client, guildId, userId, userData);
+        await setEconomyData(client, guildId, userId, userData);
 
-            await InteractionHelper.safeEditReply(interaction, { embeds: [replyEmbed] });
+        await InteractionHelper.safeEditReply(interaction, { embeds: [replyEmbed] });
     }, { command: 'beg' })
 };
-
-

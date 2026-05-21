@@ -1,10 +1,10 @@
 import { SlashCommandBuilder } from 'discord.js';
-import { createEmbed, errorEmbed, successEmbed, infoEmbed, warningEmbed } from '../../utils/embeds.js';
-import { getEconomyData, setEconomyData, getMaxBankCapacity } from '../../utils/economy.js';
+import { successEmbed } from '../../utils/embeds.js';
+import { getEconomyData, setEconomyData } from '../../utils/economy.js';
 import { withErrorHandling, createError, ErrorTypes } from '../../utils/errorHandler.js';
-import { MessageTemplates } from '../../utils/messageTemplates.js';
-
 import { InteractionHelper } from '../../utils/interactionHelper.js';
+import { t, pickLanguage } from '../../services/i18n.js';
+
 export default {
     data: new SlashCommandBuilder()
         .setName('withdraw')
@@ -18,69 +18,61 @@ export default {
         ),
 
     execute: withErrorHandling(async (interaction, config, client) => {
+        const lang = pickLanguage(config, interaction.guild);
         await InteractionHelper.safeDefer(interaction);
-            
-            const userId = interaction.user.id;
-            const guildId = interaction.guildId;
-            const amountInput = interaction.options.getInteger("amount");
 
-            const userData = await getEconomyData(client, guildId, userId);
-            
-            if (!userData) {
-                throw createError(
-                    "Failed to load economy data",
-                    ErrorTypes.DATABASE,
-                    "Failed to load your economy data. Please try again later.",
-                    { userId, guildId }
-                );
-            }
+        const userId = interaction.user.id;
+        const guildId = interaction.guildId;
+        const amountInput = interaction.options.getInteger("amount");
 
-            let withdrawAmount = amountInput;
+        const userData = await getEconomyData(client, guildId, userId);
 
-            if (withdrawAmount <= 0) {
-                throw createError(
-                    "Invalid withdrawal amount",
-                    ErrorTypes.VALIDATION,
-                    "You must withdraw a positive amount.",
-                    { amount: withdrawAmount, userId }
-                );
-            }
+        if (!userData) {
+            throw createError(
+                "Failed to load economy data",
+                ErrorTypes.DATABASE,
+                t(lang, 'wolf.cmd.economy.failedToLoad'),
+                { userId, guildId }
+            );
+        }
 
-            if (withdrawAmount > userData.bank) {
-                withdrawAmount = userData.bank;
-            }
+        let withdrawAmount = amountInput;
 
-            if (withdrawAmount === 0) {
-                throw createError(
-                    "Empty bank account",
-                    ErrorTypes.VALIDATION,
-                    "Your bank account is empty.",
-                    { userId, bankBalance: userData.bank }
-                );
-            }
+        if (withdrawAmount <= 0) {
+            throw createError(
+                "Invalid withdrawal amount",
+                ErrorTypes.VALIDATION,
+                t(lang, 'wolf.cmd.economy.wdPositive'),
+                { amount: withdrawAmount, userId }
+            );
+        }
 
-            userData.wallet += withdrawAmount;
-            userData.bank -= withdrawAmount;
+        if (withdrawAmount > userData.bank) {
+            withdrawAmount = userData.bank;
+        }
 
-            await setEconomyData(client, guildId, userId, userData);
+        if (withdrawAmount === 0) {
+            throw createError(
+                "Empty bank account",
+                ErrorTypes.VALIDATION,
+                t(lang, 'wolf.cmd.economy.wdEmptyBank'),
+                { userId, bankBalance: userData.bank }
+            );
+        }
 
-            const embed = MessageTemplates.SUCCESS.DATA_UPDATED(
-                "withdrawal",
-                `You successfully withdrew **$${withdrawAmount.toLocaleString()}** from your bank.`
-            )
-                .addFields(
-                    {
-                        name: "💵 New Cash Balance",
-                        value: `$${userData.wallet.toLocaleString()}`,
-                        inline: true,
-                    },
-                    {
-                        name: "🏦 New Bank Balance",
-                        value: `$${userData.bank.toLocaleString()}`,
-                        inline: true,
-                    },
-                );
+        userData.wallet += withdrawAmount;
+        userData.bank -= withdrawAmount;
 
-            await InteractionHelper.safeEditReply(interaction, { embeds: [embed] });
+        await setEconomyData(client, guildId, userId, userData);
+
+        const embed = successEmbed(
+            t(lang, 'wolf.cmd.economy.wdSuccessTitle'),
+            t(lang, 'wolf.cmd.economy.wdSuccessDesc', { amount: withdrawAmount.toLocaleString() })
+        ).addFields(
+            { name: t(lang, 'wolf.cmd.economy.wdNewCash'), value: `$${userData.wallet.toLocaleString()}`, inline: true },
+            { name: t(lang, 'wolf.cmd.economy.wdNewBank'), value: `$${userData.bank.toLocaleString()}`, inline: true },
+        );
+
+        await InteractionHelper.safeEditReply(interaction, { embeds: [embed] });
     }, { command: 'withdraw' })
 };
